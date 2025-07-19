@@ -3,9 +3,9 @@
   "name": "tenant-management-system-worker",
   "main": "src/index.ts",
   "compatibility_date": "2025-07-06",
-  // "compatibility_flags": [
-  //   "nodejs_compat"
-  // ],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "vars": {
     "DATABASE_URL": "postgresql://neondb_owner:npg_yH4i8OwYAWQN@ep-tight-math-a8k4bjh7-pooler.eastus2.azure.neon.tech/neondb?sslmode=require&channel_binding=require"
   },

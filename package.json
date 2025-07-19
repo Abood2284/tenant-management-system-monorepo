@@ -9,6 +9,7 @@
     "check-types": "turbo run check-types"
   },
   "devDependencies": {
+    "@types/papaparse": "^5.3.16",
     "drizzle-kit": "^0.31.4",
     "prettier": "^3.6.0",
     "turbo": "^2.5.4",
@@ -19,8 +20,9 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@auth/drizzle-adapter": "^1.10.0",
-    "@neondatabase/serverless": "^1.0.1",
-    "drizzle-orm": "^0.44.2"
+    "@auth/neon-adapter": "^1.10.0",
+    "csv-parse": "^6.0.0",
+    "drizzle-orm": "^0.44.2",
+    "papaparse": "^5.5.3"
   }
 }

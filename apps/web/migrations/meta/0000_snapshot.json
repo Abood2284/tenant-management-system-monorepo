@@ -1,71 +1,108 @@
 {
-  "id": "878dffa4-d597-49a4-b080-0791d0a3b117",
+  "id": "5bf205b6-5a6a-4ac7-a89e-b1252ea555b6",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.bills": {
-      "name": "bills",
+    "public.MONTHLY_RENT_TRACKING": {
+      "name": "MONTHLY_RENT_TRACKING",
       "schema": "",
       "columns": {
-        "id": {
-          "name": "id",
+        "ID": {
+          "name": "ID",
           "type": "text",
           "primaryKey": true,
           "notNull": true
         },
-        "tenant_id": {
-          "name": "tenant_id",
+        "TENANT_ID": {
+          "name": "TENANT_ID",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "property_id": {
-          "name": "property_id",
-          "type": "text",
+        "RENT_MONTH": {
+          "name": "RENT_MONTH",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },
-        "billing_cycle": {
-          "name": "billing_cycle",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "amount_due": {
-          "name": "amount_due",
+        "RENT_COLLECTED": {
+          "name": "RENT_COLLECTED",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": 0
         },
-        "due_date": {
-          "name": "due_date",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
+        "RENT_PENDING": {
+          "name": "RENT_PENDING",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "default": "'unpaid'"
+          "default": 0
         },
-        "user_id": {
-          "name": "user_id",
+        "OUTSTANDING_AMOUNT": {
+          "name": "OUTSTANDING_AMOUNT",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "OUTSTANDING_COLLECTED": {
+          "name": "OUTSTANDING_COLLECTED",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "OUTSTANDING_PENDING": {
+          "name": "OUTSTANDING_PENDING",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "PENALTY_AMOUNT": {
+          "name": "PENALTY_AMOUNT",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "PENALTY_PAID": {
+          "name": "PENALTY_PAID",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "PENALTY_PENDING": {
+          "name": "PENALTY_PENDING",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "FINANCIAL_YEAR": {
+          "name": "FINANCIAL_YEAR",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "created_at": {
-          "name": "created_at",
+        "QUARTER": {
+          "name": "QUARTER",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "CREATED_ON": {
+          "name": "CREATED_ON",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false,
           "default": "now()"
         },
-        "updated_at": {
-          "name": "updated_at",
+        "UPDATED_ON": {
+          "name": "UPDATED_ON",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false,
@@ -74,43 +111,17 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "bills_tenant_id_tenants_id_fk": {
-          "name": "bills_tenant_id_tenants_id_fk",
-          "tableFrom": "bills",
-          "tableTo": "tenants",
+        "MONTHLY_RENT_TRACKING_TENANT_ID_TENANTS_TENANT_ID_fk": {
+          "name": "MONTHLY_RENT_TRACKING_TENANT_ID_TENANTS_TENANT_ID_fk",
+          "tableFrom": "MONTHLY_RENT_TRACKING",
+          "tableTo": "TENANTS",
           "columnsFrom": [
-            "tenant_id"
+            "TENANT_ID"
           ],
           "columnsTo": [
-            "id"
+            "TENANT_ID"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "bills_property_id_properties_id_fk": {
-          "name": "bills_property_id_properties_id_fk",
-          "tableFrom": "bills",
-          "tableTo": "properties",
-          "columnsFrom": [
-            "property_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "bills_user_id_user_id_fk": {
-          "name": "bills_user_id_user_id_fk",
-          "tableFrom": "bills",
-          "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -120,63 +131,800 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.properties": {
-      "name": "properties",
+    "public.PENALTY_INTEREST_HISTORY": {
+      "name": "PENALTY_INTEREST_HISTORY",
       "schema": "",
       "columns": {
-        "id": {
-          "name": "id",
+        "ID": {
+          "name": "ID",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ORIGINAL_ID": {
+          "name": "ORIGINAL_ID",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "INTEREST_RATE": {
+          "name": "INTEREST_RATE",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "EFFECTIVE_FROM": {
+          "name": "EFFECTIVE_FROM",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "CREATED_ON": {
+          "name": "CREATED_ON",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "UPDATED_ON": {
+          "name": "UPDATED_ON",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "PENALTY_INTEREST_HISTORY_ORIGINAL_ID_PENALTY_INTEREST_MASTER_ID_fk": {
+          "name": "PENALTY_INTEREST_HISTORY_ORIGINAL_ID_PENALTY_INTEREST_MASTER_ID_fk",
+          "tableFrom": "PENALTY_INTEREST_HISTORY",
+          "tableTo": "PENALTY_INTEREST_MASTER",
+          "columnsFrom": [
+            "ORIGINAL_ID"
+          ],
+          "columnsTo": [
+            "ID"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.PENALTY_INTEREST_MASTER": {
+      "name": "PENALTY_INTEREST_MASTER",
+      "schema": "",
+      "columns": {
+        "ID": {
+          "name": "ID",
           "type": "text",
           "primaryKey": true,
           "notNull": true
         },
-        "name": {
-          "name": "name",
+        "INTEREST_RATE": {
+          "name": "INTEREST_RATE",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "EFFECTIVE_FROM": {
+          "name": "EFFECTIVE_FROM",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "CREATED_ON": {
+          "name": "CREATED_ON",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "UPDATED_ON": {
+          "name": "UPDATED_ON",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.PENALTY_INTEREST_UPDATES": {
+      "name": "PENALTY_INTEREST_UPDATES",
+      "schema": "",
+      "columns": {
+        "ID": {
+          "name": "ID",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "INTEREST_RATE": {
+          "name": "INTEREST_RATE",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "CREATED_ON": {
+          "name": "CREATED_ON",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.Property": {
+      "name": "Property",
+      "schema": "",
+      "columns": {
+        "PROPERTY_ID": {
+          "name": "PROPERTY_ID",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "LANDLORD_NAME": {
+          "name": "LANDLORD_NAME",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "PROPERTY_NAME": {
+          "name": "PROPERTY_NAME",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "PROPERTY_BILL_NAME": {
+          "name": "PROPERTY_BILL_NAME",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "WARD": {
+          "name": "WARD",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "NUMBER_OF_BLOCKS": {
+          "name": "NUMBER_OF_BLOCKS",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ADDRESS": {
+          "name": "ADDRESS",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "address": {
-          "name": "address",
+        "CREATED_ON": {
+          "name": "CREATED_ON",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "UPDATED_ON": {
+          "name": "UPDATED_ON",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "PHONE_NUMBER": {
+          "name": "PHONE_NUMBER",
+          "type": "varchar(12)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "FAX_NUMBER": {
+          "name": "FAX_NUMBER",
+          "type": "varchar(12)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.TENANTS": {
+      "name": "TENANTS",
+      "schema": "",
+      "columns": {
+        "TENANT_ID": {
+          "name": "TENANT_ID",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "PROPERTY_ID": {
+          "name": "PROPERTY_ID",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "TENANT_NAME": {
+          "name": "TENANT_NAME",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "SALUTATION": {
+          "name": "SALUTATION",
+          "type": "varchar(5)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "BUILDING_FOOR": {
+          "name": "BUILDING_FOOR",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "PROPERTY_TYPE": {
+          "name": "PROPERTY_TYPE",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "PROPERTY_NUMBER": {
+          "name": "PROPERTY_NUMBER",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "TENANT_MOBILE_NUMBER": {
+          "name": "TENANT_MOBILE_NUMBER",
+          "type": "varchar(15)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "NOTES": {
+          "name": "NOTES",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "CREATED_ON": {
+          "name": "CREATED_ON",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "UPDATED_ON": {
+          "name": "UPDATED_ON",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "TENANCY_DATE": {
+          "name": "TENANCY_DATE",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "TENANT_CODE": {
+          "name": "TENANT_CODE",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "IS_ACTIVE": {
+          "name": "IS_ACTIVE",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "TENANCY_END_DATE": {
+          "name": "TENANCY_END_DATE",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "FLOOR_SORT_VALUE": {
+          "name": "FLOOR_SORT_VALUE",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "SendSMS": {
+          "name": "SendSMS",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "Numberic_Room_Number": {
+          "name": "Numberic_Room_Number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "TENANTS_PROPERTY_ID_Property_PROPERTY_ID_fk": {
+          "name": "TENANTS_PROPERTY_ID_Property_PROPERTY_ID_fk",
+          "tableFrom": "TENANTS",
+          "tableTo": "Property",
+          "columnsFrom": [
+            "PROPERTY_ID"
+          ],
+          "columnsTo": [
+            "PROPERTY_ID"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.TENANTS_RENT_FACTORS": {
+      "name": "TENANTS_RENT_FACTORS",
+      "schema": "",
+      "columns": {
+        "ID": {
+          "name": "ID",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "TENANT_ID": {
+          "name": "TENANT_ID",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "BASIC_RENT": {
+          "name": "BASIC_RENT",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "PROPERTY_TAX": {
+          "name": "PROPERTY_TAX",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "REPAIR_CESS": {
+          "name": "REPAIR_CESS",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "MISC": {
+          "name": "MISC",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "CHEQUE_RETURN_CHARGE": {
+          "name": "CHEQUE_RETURN_CHARGE",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "CREATED_ON": {
+          "name": "CREATED_ON",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "UPDATED_ON": {
+          "name": "UPDATED_ON",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "BASIC_RENTLASTUPDATEDATE": {
+          "name": "BASIC_RENTLASTUPDATEDATE",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "PROPERTY_MISCLASTUPDATEDATE": {
+          "name": "PROPERTY_MISCLASTUPDATEDATE",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "REPAIR_CESSLASTUPDATEDATE": {
+          "name": "REPAIR_CESSLASTUPDATEDATE",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "MISC_TLASTUPDATEDATE": {
+          "name": "MISC_TLASTUPDATEDATE",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "TENANT_CODE": {
+          "name": "TENANT_CODE",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "IsFactorsUpdated": {
+          "name": "IsFactorsUpdated",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "EffectiveFrom": {
+          "name": "EffectiveFrom",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "FinancialYear": {
+          "name": "FinancialYear",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "TENANTS_RENT_FACTORS_TENANT_ID_TENANTS_TENANT_ID_fk": {
+          "name": "TENANTS_RENT_FACTORS_TENANT_ID_TENANTS_TENANT_ID_fk",
+          "tableFrom": "TENANTS_RENT_FACTORS",
+          "tableTo": "TENANTS",
+          "columnsFrom": [
+            "TENANT_ID"
+          ],
+          "columnsTo": [
+            "TENANT_ID"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.TENANTS_RENT_FACTORS_HISTORY": {
+      "name": "TENANTS_RENT_FACTORS_HISTORY",
+      "schema": "",
+      "columns": {
+        "OriginalID": {
+          "name": "OriginalID",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "OriginalCreatedOn": {
+          "name": "OriginalCreatedOn",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ID": {
+          "name": "ID",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "landlord_name": {
-          "name": "landlord_name",
+        "TENANT_ID": {
+          "name": "TENANT_ID",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "BASIC_RENT": {
+          "name": "BASIC_RENT",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "PROPERTY_TAX": {
+          "name": "PROPERTY_TAX",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "REPAIR_CESS": {
+          "name": "REPAIR_CESS",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "MISC": {
+          "name": "MISC",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "CHEQUE_RETURN_CHARGE": {
+          "name": "CHEQUE_RETURN_CHARGE",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "CREATED_ON": {
+          "name": "CREATED_ON",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "UPDATED_ON": {
+          "name": "UPDATED_ON",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "BASIC_RENTLASTUPDATEDATE": {
+          "name": "BASIC_RENTLASTUPDATEDATE",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "PROPERTY_MISCLASTUPDATEDATE": {
+          "name": "PROPERTY_MISCLASTUPDATEDATE",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "REPAIR_CESSLASTUPDATEDATE": {
+          "name": "REPAIR_CESSLASTUPDATEDATE",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "MISC_TLASTUPDATEDATE": {
+          "name": "MISC_TLASTUPDATEDATE",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "EffectiveTill": {
+          "name": "EffectiveTill",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "FinancialYear": {
+          "name": "FinancialYear",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "BatchID": {
+          "name": "BatchID",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.TENANT_DEBIT_NOTES": {
+      "name": "TENANT_DEBIT_NOTES",
+      "schema": "",
+      "columns": {
+        "ID": {
+          "name": "ID",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "TENANT_ID": {
+          "name": "TENANT_ID",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "FOR_DESCRIPTION": {
+          "name": "FOR_DESCRIPTION",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "FROM_DATE": {
+          "name": "FROM_DATE",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "TO_DATE": {
+          "name": "TO_DATE",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "AMOUNT": {
+          "name": "AMOUNT",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "DUE_DATE": {
+          "name": "DUE_DATE",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "CREATED_ON": {
+          "name": "CREATED_ON",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "UPDATED_ON": {
+          "name": "UPDATED_ON",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "TENANT_DEBIT_NOTES_TENANT_ID_TENANTS_TENANT_ID_fk": {
+          "name": "TENANT_DEBIT_NOTES_TENANT_ID_TENANTS_TENANT_ID_fk",
+          "tableFrom": "TENANT_DEBIT_NOTES",
+          "tableTo": "TENANTS",
+          "columnsFrom": [
+            "TENANT_ID"
+          ],
+          "columnsTo": [
+            "TENANT_ID"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.TENANT_PAYMENT_ENTRIES": {
+      "name": "TENANT_PAYMENT_ENTRIES",
+      "schema": "",
+      "columns": {
+        "ID": {
+          "name": "ID",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "TENANT_ID": {
+          "name": "TENANT_ID",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "billing_cycle": {
-          "name": "billing_cycle",
-          "type": "text",
+        "RENT_MONTH": {
+          "name": "RENT_MONTH",
+          "type": "date",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'monthly'"
+          "notNull": false
         },
-        "penalty_fee": {
-          "name": "penalty_fee",
+        "RECEIVED_AMOUNT": {
+          "name": "RECEIVED_AMOUNT",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "RENT_ALLOCATED": {
+          "name": "RENT_ALLOCATED",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "default": 0
         },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
+        "OUTSTANDING_ALLOCATED": {
+          "name": "OUTSTANDING_ALLOCATED",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "PENALTY_ALLOCATED": {
+          "name": "PENALTY_ALLOCATED",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "PAYMENT_METHOD": {
+          "name": "PAYMENT_METHOD",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
-        "created_at": {
-          "name": "created_at",
+        "PAYMENT_DATE": {
+          "name": "PAYMENT_DATE",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "CHEQUE_NUMBER": {
+          "name": "CHEQUE_NUMBER",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "CHEQUE_DATE": {
+          "name": "CHEQUE_DATE",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "BANK_NAME": {
+          "name": "BANK_NAME",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "BANK_BRANCH": {
+          "name": "BANK_BRANCH",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "TRANSACTION_ID": {
+          "name": "TRANSACTION_ID",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "PAYMENT_GATEWAY": {
+          "name": "PAYMENT_GATEWAY",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "NOTES": {
+          "name": "NOTES",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "CREATED_ON": {
+          "name": "CREATED_ON",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false,
           "default": "now()"
         },
-        "updated_at": {
-          "name": "updated_at",
+        "UPDATED_ON": {
+          "name": "UPDATED_ON",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false,
@@ -185,17 +933,17 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "properties_user_id_user_id_fk": {
-          "name": "properties_user_id_user_id_fk",
-          "tableFrom": "properties",
-          "tableTo": "user",
+        "TENANT_PAYMENT_ENTRIES_TENANT_ID_TENANTS_TENANT_ID_fk": {
+          "name": "TENANT_PAYMENT_ENTRIES_TENANT_ID_TENANTS_TENANT_ID_fk",
+          "tableFrom": "TENANT_PAYMENT_ENTRIES",
+          "tableTo": "TENANTS",
           "columnsFrom": [
-            "user_id"
+            "TENANT_ID"
           ],
           "columnsTo": [
-            "id"
+            "TENANT_ID"
           ],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -205,8 +953,57 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.session": {
-      "name": "session",
+    "public.TenanatFactorUpdate": {
+      "name": "TenanatFactorUpdate",
+      "schema": "",
+      "columns": {
+        "Id": {
+          "name": "Id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "BasicRentPercentage": {
+          "name": "BasicRentPercentage",
+          "type": "numeric(18, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "PropertyTaxPercentage": {
+          "name": "PropertyTaxPercentage",
+          "type": "numeric(18, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "RepaircessPercentage": {
+          "name": "RepaircessPercentage",
+          "type": "numeric(18, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "MiscPercentage": {
+          "name": "MiscPercentage",
+          "type": "numeric(18, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "CreatedOn": {
+          "name": "CreatedOn",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.sessions": {
+      "name": "sessions",
       "schema": "",
       "columns": {
         "sessionToken": {
@@ -230,10 +1027,10 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "session_userId_user_id_fk": {
-          "name": "session_userId_user_id_fk",
-          "tableFrom": "session",
-          "tableTo": "user",
+        "sessions_userId_users_id_fk": {
+          "name": "sessions_userId_users_id_fk",
+          "tableFrom": "sessions",
+          "tableTo": "users",
           "columnsFrom": [
             "userId"
           ],
@@ -250,307 +1047,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.settings": {
-      "name": "settings",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rent_increment_percentage": {
-          "name": "rent_increment_percentage",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 0
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "settings_user_id_user_id_fk": {
-          "name": "settings_user_id_user_id_fk",
-          "tableFrom": "settings",
-          "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "settings_user_id_unique": {
-          "name": "settings_user_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "user_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.tenants": {
-      "name": "tenants",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "phone": {
-          "name": "phone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "address": {
-          "name": "address",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "property_id": {
-          "name": "property_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rent_amount": {
-          "name": "rent_amount",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "taxes": {
-          "name": "taxes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 0
-        },
-        "other_fees": {
-          "name": "other_fees",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "default": 0
-        },
-        "total_rent": {
-          "name": "total_rent",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "communication_preference": {
-          "name": "communication_preference",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'whatsapp'"
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "tenants_property_id_properties_id_fk": {
-          "name": "tenants_property_id_properties_id_fk",
-          "tableFrom": "tenants",
-          "tableTo": "properties",
-          "columnsFrom": [
-            "property_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "tenants_user_id_user_id_fk": {
-          "name": "tenants_user_id_user_id_fk",
-          "tableFrom": "tenants",
-          "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.transactions": {
-      "name": "transactions",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "amount": {
-          "name": "amount",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "payment_date": {
-          "name": "payment_date",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "payment_method": {
-          "name": "payment_method",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "transaction_id": {
-          "name": "transaction_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "notes": {
-          "name": "notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "transactions_tenant_id_tenants_id_fk": {
-          "name": "transactions_tenant_id_tenants_id_fk",
-          "tableFrom": "transactions",
-          "tableTo": "tenants",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "transactions_user_id_user_id_fk": {
-          "name": "transactions_user_id_user_id_fk",
-          "tableFrom": "transactions",
-          "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.user": {
-      "name": "user",
+    "public.users": {
+      "name": "users",
       "schema": "",
       "columns": {
         "id": {
@@ -596,14 +1094,20 @@
           "primaryKey": false,
           "notNull": false,
           "default": "now()"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "user_email_unique": {
-          "name": "user_email_unique",
+        "users_email_unique": {
+          "name": "users_email_unique",
           "nullsNotDistinct": false,
           "columns": [
             "email"

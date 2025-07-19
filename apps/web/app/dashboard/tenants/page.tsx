@@ -1,239 +1,410 @@
+// apps/web/app/dashboard/tenants/page.tsx
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import Link from "next/link";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Plus,
-  Search,
-  Edit,
-  Trash2,
-  Phone,
-  MapPin,
-  Building,
-  AlertCircle,
-  Users,
-} from "lucide-react";
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Plus, Search, Edit, Trash2, Users, Filter } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { TablePagination } from "@/components/ui/pagination";
+
+// Types
+interface Tenant {
+  TENANT_ID: string;
+  TENANT_NAME: string | null;
+  PROPERTY_ID: string | null;
+  PROPERTY_NUMBER: string | null;
+  IS_ACTIVE: boolean | null;
+  BUILDING_FOOR?: string | null;
+  TENANT_MOBILE_NUMBER?: string | null;
+  TENANCY_DATE?: string | null;
+  TENANCY_END_DATE?: string | null;
+}
+
+interface Property {
+  PROPERTY_ID: string;
+  PROPERTY_NAME: string;
+}
 
 function TenantsPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [properties, setProperties] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [propertyFilter, setPropertyFilter] = useState<string>("all");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [currentTenants, setCurrentTenants] = useState(false);
+  const [hasContact, setHasContact] = useState(false);
+  const [expiringSoon, setExpiringSoon] = useState(false);
+  const pageSize = 15;
 
-  // Mock data
-  const tenants = [
-    {
-      id: 1,
-      name: "John Smith",
-      phone: "+91 9876543210",
-      property: "Sunset Apartments",
-      unit: "A-101",
-      rentAmount: 12000,
-      classification: "Residential",
-      communicationMethod: "WhatsApp",
-      status: "Active",
-      lastPayment: "2025-01-01",
-      outstanding: 0,
-    },
-    {
-      id: 2,
-      name: "Sarah Johnson",
-      phone: "+91 9876543211",
-      property: "Oak Street Building",
-      unit: "B-205",
-      rentAmount: 15000,
-      classification: "Commercial",
-      communicationMethod: "SMS",
-      status: "Active",
-      lastPayment: "2024-12-15",
-      outstanding: 15000,
-    },
-    {
-      id: 3,
-      name: "Mike Wilson",
-      phone: "+91 9876543212",
-      property: "Downtown Plaza",
-      unit: "C-302",
-      rentAmount: 18000,
-      classification: "Residential",
-      communicationMethod: "WhatsApp",
-      status: "Active",
-      lastPayment: "2025-01-03",
-      outstanding: 0,
-    },
-  ];
+  // Debounce search input
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
 
-  const filteredTenants = tenants.filter(
-    (tenant) =>
-      tenant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tenant.phone.includes(searchTerm) ||
-      tenant.property.toLowerCase().includes(searchTerm.toLowerCase())
+  // Fetch tenants from backend with all filters
+  const fetchTenants = useCallback(
+    async (pageNum: number) => {
+      try {
+        setLoading(true);
+        const params = new URLSearchParams({
+          page: pageNum.toString(),
+          limit: pageSize.toString(),
+        });
+        if (statusFilter !== "all") params.append("status", statusFilter);
+        if (propertyFilter !== "all")
+          params.append("propertyId", propertyFilter);
+        if (debouncedSearch) params.append("search", debouncedSearch);
+        if (currentTenants) params.append("current", "true");
+        if (hasContact) params.append("hasContact", "true");
+        if (expiringSoon) params.append("expiringSoon", "true");
+        const res = await fetch(
+          `http://localhost:8787/api/tenant/list?${params}`
+        );
+        if (!res.ok) throw new Error("Failed to fetch tenants");
+        const { data, total: totalCount } = (await res.json()) as {
+          data: Tenant[];
+          total?: number;
+        };
+        setTenants(data);
+        if (typeof totalCount === "number") setTotal(totalCount);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unknown error");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [
+      statusFilter,
+      propertyFilter,
+      debouncedSearch,
+      currentTenants,
+      hasContact,
+      expiringSoon,
+      pageSize,
+    ]
   );
 
+  // Fetch properties on mount
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      setLoading(true);
+      try {
+        const propRes = await fetch("http://localhost:8787/api/property/list");
+        if (!propRes.ok) throw new Error("Failed to fetch properties");
+        const propJson = (await propRes.json()) as { data: Property[] };
+        const propMap = (propJson.data || []).reduce(
+          (acc, prop) => {
+            acc[prop.PROPERTY_ID] = prop.PROPERTY_NAME;
+            return acc;
+          },
+          {} as Record<string, string>
+        );
+        setProperties(propMap);
+        await fetchTenants(1);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unknown error");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchInitialData();
+  }, [fetchTenants]);
+
+  // Refetch tenants when page, filters, or debounced search change
+  useEffect(() => {
+    fetchTenants(page);
+  }, [
+    page,
+    statusFilter,
+    propertyFilter,
+    debouncedSearch,
+    currentTenants,
+    hasContact,
+    expiringSoon,
+    fetchTenants,
+  ]);
+
+  // Reset to page 1 when filters/search change
+  useEffect(() => {
+    setPage(1);
+  }, [
+    statusFilter,
+    propertyFilter,
+    debouncedSearch,
+    currentTenants,
+    hasContact,
+    expiringSoon,
+  ]);
+
+  if (loading && page === 1) return <div>Loading tenants...</div>;
+  if (error) return <div className="text-red-500">Error: {error}</div>;
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-6 h-full">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-prussian_blue-500">Tenants</h1>
-          <p className="text-muted-foreground mt-2">
-            Manage your tenants and their information
+          <h1 className="text-3xl font-bold text-prussian-blue-500">Tenants</h1>
+          <p className="text-air-superiority-blue-500 mt-2">
+            Manage all tenants across your properties.
           </p>
         </div>
-        <Button className="bg-prussian_blue-500 hover:bg-prussian_blue-600">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Tenant
+        <Button
+          asChild
+          className="bg-prussian-blue-500 hover:bg-prussian-blue-600 text-papaya-whip-500"
+        >
+          <Link href="/dashboard/tenants/new">
+            <Plus className="h-4 w-4 mr-2" />
+            Add New Tenant
+          </Link>
         </Button>
       </div>
 
       {/* Search and Filters */}
       <Card>
-        <CardContent className="p-4">
-          <div className="flex gap-4 items-center">
-            <div className="relative flex-1">
-              <Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
-              <Input
-                placeholder="Search tenants by name, phone, or property..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Button
-              variant="outline"
-              className="text-prussian_blue-500 border-prussian_blue-500"
+        <CardContent className="p-4 flex gap-4 items-center flex-wrap">
+          <div className="relative max-w-xs w-full">
+            <Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
+            <Input
+              placeholder="Search tenants by name or unit..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <div className="flex gap-2 items-center ml-auto flex-wrap">
+            {/* Property Filter Dropdown */}
+            <Select
+              value={propertyFilter}
+              onValueChange={(value) => setPropertyFilter(value)}
             >
-              Filter
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="All Properties">
+                  {propertyFilter === "all"
+                    ? "All Properties"
+                    : properties[propertyFilter] || "Unknown"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Properties</SelectItem>
+                {Object.entries(properties).map(([id, name]) => (
+                  <SelectItem key={id} value={id}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              variant={statusFilter === "active" ? "default" : "outline"}
+              className={`rounded-md shadow-sm font-medium transition-colors ${statusFilter === "active" ? "bg-prussian-blue-500 text-white hover:bg-prussian-blue-600" : "border-prussian-blue-200 text-prussian-blue-700 hover:bg-prussian-blue-50"}`}
+              onClick={() =>
+                setStatusFilter(statusFilter === "active" ? "all" : "active")
+              }
+              aria-pressed={statusFilter === "active"}
+            >
+              Active
             </Button>
+            <Button
+              size="sm"
+              variant={statusFilter === "inactive" ? "default" : "outline"}
+              className={`rounded-md shadow-sm font-medium transition-colors ${statusFilter === "inactive" ? "bg-prussian-blue-500 text-white hover:bg-prussian-blue-600" : "border-prussian-blue-200 text-prussian-blue-700 hover:bg-prussian-blue-50"}`}
+              onClick={() =>
+                setStatusFilter(
+                  statusFilter === "inactive" ? "all" : "inactive"
+                )
+              }
+              aria-pressed={statusFilter === "inactive"}
+            >
+              Inactive
+            </Button>
+            <Button
+              size="sm"
+              variant={currentTenants ? "default" : "outline"}
+              className={`rounded-md shadow-sm font-medium transition-colors ${currentTenants ? "bg-prussian-blue-500 text-white hover:bg-prussian-blue-600" : "border-prussian-blue-200 text-prussian-blue-700 hover:bg-prussian-blue-50"}`}
+              onClick={() => setCurrentTenants((v) => !v)}
+              aria-pressed={currentTenants}
+            >
+              Current Tenants
+            </Button>
+            <Button
+              size="sm"
+              variant={hasContact ? "default" : "outline"}
+              className={`rounded-md shadow-sm font-medium transition-colors ${hasContact ? "bg-prussian-blue-500 text-white hover:bg-prussian-blue-600" : "border-prussian-blue-200 text-prussian-blue-700 hover:bg-prussian-blue-50"}`}
+              onClick={() => setHasContact((v) => !v)}
+              aria-pressed={hasContact}
+            >
+              Has Contact
+            </Button>
+            <Button
+              size="sm"
+              variant={expiringSoon ? "default" : "outline"}
+              className={`rounded-md shadow-sm font-medium transition-colors ${expiringSoon ? "bg-prussian-blue-500 text-white hover:bg-prussian-blue-600" : "border-prussian-blue-200 text-prussian-blue-700 hover:bg-prussian-blue-50"}`}
+              onClick={() => setExpiringSoon((v) => !v)}
+              aria-pressed={expiringSoon}
+            >
+              Expiring Soon
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="rounded-md font-medium text-prussian-blue-500 hover:bg-prussian-blue-50"
+              onClick={() => {
+                setStatusFilter("all");
+                setCurrentTenants(false);
+                setHasContact(false);
+                setExpiringSoon(false);
+              }}
+            >
+              Reset
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2 rounded-md shadow-sm font-medium border-prussian-blue-200 text-prussian-blue-700 hover:bg-prussian-blue-50"
+                >
+                  <Filter className="h-4 w-4" />
+                  Filter
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuCheckboxItem
+                  checked={statusFilter === "all"}
+                  onCheckedChange={() => setStatusFilter("all")}
+                >
+                  All Statuses
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={statusFilter === "active"}
+                  onCheckedChange={() => setStatusFilter("active")}
+                >
+                  Active
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={statusFilter === "inactive"}
+                  onCheckedChange={() => setStatusFilter("inactive")}
+                >
+                  Inactive
+                </DropdownMenuCheckboxItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </CardContent>
       </Card>
 
-      {/* Tenants Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {filteredTenants.map((tenant) => (
-          <Card key={tenant.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex justify-between items-start">
-                <CardTitle className="text-lg text-prussian_blue-500">
-                  {tenant.name}
-                </CardTitle>
-                <div className="flex gap-2">
-                  <Badge
-                    variant={
-                      tenant.status === "Active" ? "default" : "secondary"
-                    }
-                    className="bg-green-100 text-green-800"
-                  >
-                    {tenant.status}
-                  </Badge>
-                  {tenant.outstanding > 0 && (
-                    <Badge className="bg-fire_brick-500 text-white">
-                      <AlertCircle className="h-3 w-3 mr-1" />
-                      Overdue
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm">
-                  <Phone className="h-4 w-4 text-air_superiority_blue-500" />
-                  <span className="text-prussian_blue-500">{tenant.phone}</span>
-                </div>
-
-                <div className="flex items-center gap-2 text-sm">
-                  <Building className="h-4 w-4 text-air_superiority_blue-500" />
-                  <span className="text-prussian_blue-500">
-                    {tenant.property}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 text-sm">
-                  <MapPin className="h-4 w-4 text-air_superiority_blue-500" />
-                  <span className="text-muted-foreground">Unit:</span>
-                  <span className="text-prussian_blue-500">{tenant.unit}</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 pt-2 border-t">
-                <div>
-                  <div className="text-sm text-muted-foreground">
-                    Monthly Rent
-                  </div>
-                  <div className="text-lg font-bold text-prussian_blue-500">
-                    ₹{tenant.rentAmount.toLocaleString()}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-muted-foreground">
-                    Outstanding
-                  </div>
-                  <div
-                    className={`text-lg font-bold ${tenant.outstanding > 0 ? "text-fire_brick-500" : "text-green-600"}`}
-                  >
-                    ₹{tenant.outstanding.toLocaleString()}
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-2 border-t space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Type:</span>
-                  <Badge variant="outline" className="text-xs">
-                    {tenant.classification}
-                  </Badge>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Communication:</span>
-                  <span className="text-prussian_blue-500">
-                    {tenant.communicationMethod}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Last Payment:</span>
-                  <span className="text-prussian_blue-500">
-                    {tenant.lastPayment}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-3">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1 text-air_superiority_blue-500 border-air_superiority_blue-500"
-                >
-                  <Edit className="h-4 w-4 mr-1" />
-                  Edit
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-fire_brick-500 border-fire_brick-500 hover:bg-fire_brick-500 hover:text-white"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+      {/* Results Count */}
+      <div className="flex justify-end items-center mb-2">
+        <span className="text-sm text-prussian-blue-500 font-medium bg-prussian-blue-50 rounded px-3 py-1 shadow-sm">
+          {`Results: ${tenants.length} of ${total} results`}
+        </span>
       </div>
 
-      {filteredTenants.length === 0 && (
-        <Card>
-          <CardContent className="text-center py-12">
-            <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-prussian_blue-500">
-              No tenants found
-            </h3>
-            <p className="text-muted-foreground">
-              Try adjusting your search criteria
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {/* Tenants Table */}
+      <Card className="flex flex-col h-[600px]">
+        <CardContent className="flex-1 overflow-y-auto p-0 px-6">
+          {" "}
+          {/* Added px-6 for horizontal padding */}
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Unit</TableHead>
+                <TableHead>Floor</TableHead>
+                <TableHead>Contact</TableHead>
+                <TableHead>Tenancy Start</TableHead>
+                <TableHead>Tenancy End</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tenants.map((tenant) => (
+                <TableRow key={tenant.TENANT_ID}>
+                  <TableCell className="font-medium text-prussian_blue-500">
+                    {tenant.TENANT_NAME}
+                  </TableCell>
+                  <TableCell>{tenant.PROPERTY_NUMBER}</TableCell>
+                  <TableCell>{tenant.BUILDING_FOOR || "-"}</TableCell>
+                  <TableCell>{tenant.TENANT_MOBILE_NUMBER || "-"}</TableCell>
+                  <TableCell>
+                    {tenant.TENANCY_DATE
+                      ? new Date(tenant.TENANCY_DATE).toLocaleDateString()
+                      : "-"}
+                  </TableCell>
+                  <TableCell>
+                    {tenant.TENANCY_END_DATE
+                      ? new Date(tenant.TENANCY_END_DATE).toLocaleDateString()
+                      : "-"}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={tenant.IS_ACTIVE ? "default" : "secondary"}
+                      className={
+                        tenant.IS_ACTIVE
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
+                      }
+                    >
+                      {tenant.IS_ACTIVE ? "Active" : "Inactive"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="icon">
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-red-500"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+        <div className="p-4 border-t">
+          <TablePagination
+            className=""
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={setPage}
+          />
+        </div>
+      </Card>
     </div>
   );
 }

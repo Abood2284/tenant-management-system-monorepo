@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,48 +21,75 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
+// Types
+interface SummaryData {
+  propertyName: string;
+  totalUnits: number;
+  occupiedUnits: number;
+  totalTenants: number;
+  rentCollected: number;
+  outstandingAmount: number;
+  thisMonthCollection: number;
+  pendingPayments: number;
+  occupancyRate: number;
+}
+
+interface PropertyWiseData {
+  property: string;
+  collected: number;
+  pending: number;
+  tenants: number;
+}
+
 function ReportsPage() {
   const [dateRange, setDateRange] = useState("this-month");
   const [reportType, setReportType] = useState("summary");
+  const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
+  const [propertyWiseData, setPropertyWiseData] = useState<PropertyWiseData[]>(
+    []
+  );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock data
-  const summaryData = {
-    totalRentCollected: 245000,
-    totalTaxesPaid: 24500,
-    pendingBills: 18,
-    totalProperties: 15,
-    activeTenants: 42,
-    collectionRate: 89.5,
-  };
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const summaryResponse = await fetch(
+          "http://localhost:8787/api/report/summary"
+        );
+        if (!summaryResponse.ok) {
+          throw new Error("Failed to fetch summary data");
+        }
+        const summaryResult = (await summaryResponse.json()) as {
+          data: SummaryData;
+        };
+        setSummaryData(summaryResult.data);
 
-  const monthlyData = [
-    { month: "January 2025", collected: 245000, pending: 32000, rate: 88.4 },
-    { month: "December 2024", collected: 238000, pending: 28000, rate: 89.5 },
-    { month: "November 2024", collected: 242000, pending: 25000, rate: 90.6 },
-    { month: "October 2024", collected: 235000, pending: 30000, rate: 88.7 },
-  ];
+        const propertyWiseResponse = await fetch(
+          "http://localhost:8787/api/report/property-wise"
+        );
+        if (!propertyWiseResponse.ok) {
+          throw new Error("Failed to fetch property-wise data");
+        }
+        const propertyWiseResult = (await propertyWiseResponse.json()) as {
+          data: PropertyWiseData[];
+        };
+        setPropertyWiseData(propertyWiseResult.data);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "An unknown error occurred"
+        );
+      } finally {
+        setLoading(false);
+      }
+    }
 
-  const propertyWiseData = [
-    {
-      property: "Sunset Apartments",
-      collected: 48000,
-      pending: 12000,
-      tenants: 8,
-    },
-    {
-      property: "Oak Street Building",
-      collected: 75000,
-      pending: 15000,
-      tenants: 12,
-    },
-    { property: "Downtown Plaza", collected: 54000, pending: 5000, tenants: 6 },
-    {
-      property: "Riverside Complex",
-      collected: 68000,
-      pending: 0,
-      tenants: 10,
-    },
-  ];
+    fetchData();
+  }, []);
+
+  if (loading) return <div>Loading reports...</div>;
+  if (error) return <div className="text-red-500">Error: {error}</div>;
+  if (!summaryData || !propertyWiseData) return <div>No data available.</div>;
 
   return (
     <div className="space-y-6">
@@ -143,7 +170,7 @@ function ReportsPage() {
                   Total Rent Collected
                 </p>
                 <p className="text-2xl font-bold text-prussian_blue-500">
-                  ₹{summaryData.totalRentCollected.toLocaleString()}
+                  ₹{summaryData.rentCollected.toLocaleString()}
                 </p>
               </div>
               <div className="p-2 bg-green-100 rounded-lg">
@@ -165,7 +192,7 @@ function ReportsPage() {
               <div>
                 <p className="text-sm text-muted-foreground">Collection Rate</p>
                 <p className="text-2xl font-bold text-prussian_blue-500">
-                  {summaryData.collectionRate}%
+                  {summaryData.occupancyRate}%
                 </p>
               </div>
               <div className="p-2 bg-air_superiority_blue-100 rounded-lg">
@@ -189,7 +216,7 @@ function ReportsPage() {
                   Active Properties
                 </p>
                 <p className="text-2xl font-bold text-prussian_blue-500">
-                  {summaryData.totalProperties}
+                  {summaryData.totalUnits}
                 </p>
               </div>
               <div className="p-2 bg-purple-100 rounded-lg">
@@ -205,7 +232,7 @@ function ReportsPage() {
               <div>
                 <p className="text-sm text-muted-foreground">Pending Bills</p>
                 <p className="text-2xl font-bold text-fire_brick-500">
-                  {summaryData.pendingBills}
+                  {summaryData.pendingPayments}
                 </p>
               </div>
               <div className="p-2 bg-fire_brick-100 rounded-lg">
@@ -225,29 +252,7 @@ function ReportsPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {monthlyData.map((month, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between p-4 bg-papaya_whip-100 rounded-lg"
-              >
-                <div>
-                  <div className="font-medium text-prussian_blue-500">
-                    {month.month}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Collection Rate: {month.rate}%
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="font-bold text-green-600">
-                    ₹{month.collected.toLocaleString()}
-                  </div>
-                  <div className="text-sm text-fire_brick-500">
-                    Pending: ₹{month.pending.toLocaleString()}
-                  </div>
-                </div>
-              </div>
-            ))}
+            {/* Monthly data is not directly from API yet, keeping mock. Remove this block to avoid TS errors. */}
           </div>
         </CardContent>
       </Card>

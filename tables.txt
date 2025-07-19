@@ -1,0 +1,1393 @@
+USE [TenantManagementSystem]
+GO
+/****** Object:  UserDefinedTableType [dbo].[RecceImagesType]    Script Date: 10-12-2021 15:21:06 ******/
+CREATE TYPE [dbo].[RecceImagesType] AS TABLE(
+	[ReceeImageName] [nvarchar](max) NULL,
+	[RecceId] [int] NULL,
+	[RecceEmployeeId] [int] NULL,
+	[BranchCategoryId] [int] NULL,
+	[BranchSubCategoryId] [int] NULL,
+	[StoreSection] [varchar](600) NULL,
+	[Area] [decimal](18, 2) NULL,
+	[CreatedOn] [datetime] NULL,
+	[UpdatedOn] [datetime] NULL
+)
+GO
+/****** Object:  StoredProcedure [dbo].[S_GET_TENANT_BYPROPERTY_ID]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[S_GET_TENANT_BYPROPERTY_ID] @PropertyID UNIQUEIDENTIFIER
+AS
+BEGIN
+ SELECT 
+		T.TENANT_ID,
+		T.PROPERTY_ID,
+		T.TENANT_NAME,
+		T.SALUTATION,
+		T.BUILDING_FOOR,
+		T.PROPERTY_TYPE,
+		T.PROPERTY_NUMBER, 
+		T.TENANT_MOBILE_NUMBER,
+		T.NOTES,
+		T.CREATED_ON,
+		T.UPDATED_ON,
+		T.TENANCY_DATE,
+		T.TENANCY_END_DATE,
+		T.IS_ACTIVE,
+		TR.ID,
+		TR.TENANT_ID AS 'TENANT_ID1',
+		TR.BASIC_RENT,
+		TR.PROPERTY_TAX,
+		TR.REPAIR_CESS,
+		TR.MISC,
+		TR.CHEQUE_RETURN_CHARGE,
+		TR.CREATED_ON AS 'CREATED_ON1',
+		TR.UPDATED_ON AS 'UPDATED_ON1'
+		FROM  
+		dbo.TENANTS T INNER JOIN dbo.TENANTS_RENT_FACTORS TR
+		ON
+		T.TENANT_ID = TR.TENANT_ID 
+		WHERE PROPERTY_ID = @PropertyID;
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_CREATE_TENANT]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+  
+  
+  
+CREATE PROC [dbo].[SP_CREATE_TENANT]  
+@PROPERTY_ID UNIQUEIDENTIFIER,  
+@TENANCY_DATE DATE,  
+@TENANT_NAME VARCHAR(MAX),  
+@SALUTATION CHAR(5),  
+@BUILDING_FOOR nVARCHAR(MAX),  
+@PROPERTY_TYPE CHAR(50),  
+@PROPERTY_NUMBER nVARCHAR(MAX),  
+@TENANT_MOBILE_NUMBER VARCHAR(15),  
+@NOTES VARCHAR(MAX),  
+@BASIC_RENT INT,  
+@PROPERTY_TAX INT,  
+@REPAIR_CESS INT,  
+@MISC INT,  
+@CHEQUE_RETURN_CHARGE INT,
+@FINANCIAL_YEAR VARCHAR(MAX)  
+AS  
+BEGIN  
+ DECLARE @TENANT_ID UNIQUEIDENTIFIER;  
+ SET @TENANT_ID = NEWID();  
+   
+  INSERT INTO dbo.TENANTS   
+  (TENANT_ID,PROPERTY_ID,TENANT_NAME,SALUTATION,BUILDING_FOOR,PROPERTY_TYPE,
+PROPERTY_NUMBER,TENANT_MOBILE_NUMBER,NOTES,CREATED_ON,UPDATED_ON,TENANCY_DATE,IS_ACTIVE)
+  VALUES(  
+  @TENANT_ID,   
+  @PROPERTY_ID,   
+  @TENANT_NAME,   
+  @SALUTATION,   
+  @BUILDING_FOOR,   
+  @PROPERTY_TYPE,  
+  @PROPERTY_NUMBER,  
+  @TENANT_MOBILE_NUMBER,  
+  @NOTES,  
+  GETDATE(),  
+  NULL,  
+  @TENANCY_DATE,
+  1
+  );  
+  -----------------------------------------------------------  
+  -----------------------------------------------------------  
+  INSERT INTO dbo.TENANTS_RENT_FACTORS
+  (ID,TENANT_ID,BASIC_RENT,PROPERTY_TAX,REPAIR_CESS,MISC,CHEQUE_RETURN_CHARGE,CREATED_ON,UPDATED_ON,FinancialYear)
+  VALUES(  
+  NEWID(),  
+  @TENANT_ID,  
+  @BASIC_RENT,  
+  @PROPERTY_TAX,  
+  @REPAIR_CESS,  
+  @MISC,  
+  @CHEQUE_RETURN_CHARGE,  
+  GETDATE(),  
+  NULL ,
+  @FINANCIAL_YEAR 
+  );  
+END  
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_CREATEPROPERTY]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROC [dbo].[SP_CREATEPROPERTY]
+@LANDLORD_NAME VARCHAR(20), 
+@PROPERTY_NAME VARCHAR(50),
+@PROPERTY_BILL_NAME VARCHAR(50),
+@WARD VARCHAR(10),
+@NUMBER_OF_BLOCKS INT,
+@ADDRESS VARCHAR(MAX),
+@PHONE_NUMBER VARCHAR(MAX),
+@FAX_NUMBER VARCHAR(MAX)
+AS
+BEGIN
+	INSERT 
+	INTO Property 
+	VALUES(NEWID(),@LANDLORD_NAME,@PROPERTY_NAME,@PROPERTY_BILL_NAME,@WARD,@NUMBER_OF_BLOCKS,@ADDRESS,GETDATE(),NULL,@PHONE_NUMBER,@FAX_NUMBER);
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_DELETE_TENANT]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROC [dbo].[SP_DELETE_TENANT]
+@TENANT_ID UNIQUEIDENTIFIER,
+@TENANCY_END_DATE DATETIME
+AS
+BEGIN
+		--DELETE FROM dbo.TENANTS_RENT_FACTORS WHERE TENANT_ID = @TENANT_ID;
+		UPDATE dbo.TENANTS
+		SET IS_ACTIVE = 0,
+		TENANCY_END_DATE = @TENANCY_END_DATE
+		WHERE TENANT_ID = @TENANT_ID;
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_DELETEPROPERTY]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROC [dbo].[SP_DELETEPROPERTY]
+@ID UNIQUEIDENTIFIER
+AS
+BEGIN
+DELETE FROM dbo.Property
+WHERE PROPERTY_ID = @ID;
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_GET_PEANLTY_CONTEXT]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROC [dbo].[SP_GET_PEANLTY_CONTEXT]
+AS
+BEGIN
+	SELECT 
+	NewPenalty.INTEREST_RATE AS 'NEW_PENALTY_INTEREST',
+	NewPenalty.EFFECTIVE_FROM AS 'NEW_PENALTY_EFFECTIVE_FROM',
+	OldPenalty.INTEREST_RATE AS 'OLD_PENALTY_INTEREST',
+	OldPenalty.EFFECTIVE_FROM AS 'OLD_PENALTY_EFFECTIVE_TILL'
+	FROM 
+	PENALTY_INTEREST_MASTER NewPenalty  
+	LEFT JOIN 
+	PENALTY_INTEREST_HISTORY OldPenalty
+	ON 
+	NewPenalty.ID = OldPenalty.ORIGINAL_ID
+	ORDER BY NewPenalty.EFFECTIVE_FROM DESC
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_GET_PENALTY_INTEREST]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROC [dbo].[SP_GET_PENALTY_INTEREST]
+AS
+BEGIN
+ SELECT * FROM PENALTY_INTEREST_MASTER;
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_GET_TENANT_DEBIT_NOTE]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE PROC [dbo].[SP_GET_TENANT_DEBIT_NOTE]
+@FROM_DATE DATETIME,
+@TO_DATE DATETIME
+AS
+BEGIN
+	SELECT T.TENANT_ID,
+	T.PROPERTY_ID,
+	T.TENANT_NAME,
+	T.SALUTATION,
+	T.BUILDING_FOOR,
+	T.PROPERTY_NUMBER,
+	T.PROPERTY_TYPE,
+	T.TENANT_MOBILE_NUMBER,
+	TDN.ID,
+	TDN.FOR_DESCRIPTION,
+	TDN.FROM_DATE,
+	TDN.TO_DATE,
+	TDN.AMOUNT,
+	TDN.DUE_DATE,
+	TDN.CREATED_ON
+	FROM TENANT_DEBIT_NOTES TDN INNER JOIN TENANTS T 
+	ON TDN.TENANT_ID = T.TENANT_ID WHERE TDN.FROM_DATE >= @FROM_DATE OR TDN.TO_DATE <= @TO_DATE;
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_GET_TENANT_PAYMENT_ENTRIES]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROC [dbo].[SP_GET_TENANT_PAYMENT_ENTRIES]
+@TENANT_ID UNIQUEIDENTIFIER
+AS
+BEGIN
+	SELECT * FROM dbo.TENANT_PAYMENT_ENTRIES WHERE TENANT_ID = @TENANT_ID AND PAYMENT_TYPE != 1;
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_GET_TENANT_RECENT_PAYMENT_ENTRIES]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROC [dbo].[SP_GET_TENANT_RECENT_PAYMENT_ENTRIES]
+AS
+BEGIN
+	SELECT
+	TPE.ID,
+	T.TENANT_ID,
+	T.SALUTATION,
+	T.TENANT_NAME,
+	P.PROPERTY_NAME,
+	P.LANDLORD_NAME,
+	P.PROPERTY_BILL_NAME,
+	P.PHONE_NUMBER,
+	P.FAX_NUMBER,
+	P.ADDRESS,
+	T.PROPERTY_TYPE,
+	T.BUILDING_FOOR,
+	T.PROPERTY_NUMBER,
+	TRF.BASIC_RENT,
+	TRF.PROPERTY_TAX,
+	TRF.REPAIR_CESS,
+	TRF.MISC,
+	TPE.RENT_MONTH,
+	TPE.PENALTY_AMOUNT,
+	TPE.CURRENT_RENT,
+	TPE.RECEIVED_AMOUNT,
+	TPE.PAYMENT_METHOD,
+	TPE.CHEQUE_NUMBER,
+	TPE.CHEQUE_DATE,
+	TPE.BANK_NAME,
+	TPE.BANK_BRANCH,
+	TPE.ENTRY_CREATED_ON,
+	TPE.ENTRY_UPDATED_ON
+	FROM 
+	TENANT_PAYMENT_ENTRIES TPE INNER JOIN TENANTS T 
+	ON TPE.TENANT_ID = T.TENANT_ID INNER JOIN dbo.TENANTS_RENT_FACTORS TRF 
+	ON T.TENANT_ID = TRF.TENANT_ID INNER JOIN Property P 
+	ON T.PROPERTY_ID = P.PROPERTY_ID
+	ORDER BY TPE.ENTRY_CREATED_ON DESC;
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_GETPROPERTIES]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+/****** Object:  StoredProcedure [dbo].[SP_GETPROPERTIES]    Script Date: 04/27/2020 13:11:45 ******/
+ 
+CREATE PROC [dbo].[SP_GETPROPERTIES]
+AS
+BEGIN
+	SELECT * FROM dbo.Property;
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_GETPROPERTY_BYID]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROC [dbo].[SP_GETPROPERTY_BYID]
+@ID UNIQUEIDENTIFIER
+AS
+BEGIN
+ SELECT * FROM dbo.Property WHERE PROPERTY_ID = @ID;
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_GETTENANT_BYID]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE PROC [dbo].[SP_GETTENANT_BYID]
+@TENANT_ID UNIQUEIDENTIFIER
+AS
+BEGIN
+		SELECT 
+		T.TENANT_ID,
+		T.PROPERTY_ID,
+		T.TENANT_NAME,
+		T.SALUTATION,
+		T.BUILDING_FOOR,
+		T.PROPERTY_TYPE,
+		T.PROPERTY_NUMBER, 
+		T.TENANT_MOBILE_NUMBER,
+		T.NOTES,
+		T.CREATED_ON,
+		T.UPDATED_ON,
+		T.TENANCY_DATE,
+		T.TENANCY_END_DATE,
+		T.IS_ACTIVE,
+		T.SendSMS,
+		TR.ID,
+		TR.TENANT_ID AS 'TENANT_ID1',
+		TR.BASIC_RENT,
+		TR.PROPERTY_TAX,
+		TR.REPAIR_CESS,
+		TR.MISC,
+		TR.CHEQUE_RETURN_CHARGE,
+		TR.CREATED_ON AS 'CREATED_ON1',
+		TR.UPDATED_ON AS 'UPDATED_ON1'
+		FROM  
+		dbo.TENANTS T INNER JOIN dbo.TENANTS_RENT_FACTORS TR
+		ON
+		T.TENANT_ID = TR.TENANT_ID
+		WHERE T.TENANT_ID = @TENANT_ID;
+END
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_GetTenantFactorsContextByFinancialYear]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[SP_GetTenantFactorsContextByFinancialYear] @FinancialYear VARCHAR(MAX)
+AS
+BEGIN
+SELECT 
+NewFactors.ID AS 'NewFacorID',
+NewFactors.TENANT_ID AS 'NewFactorTenantID',
+NewFactors.BASIC_RENT AS 'NewFactorBasicRent',
+NewFactors.BASIC_RENTLASTUPDATEDATE AS 'NewBasicRentEffectiveFrom',
+NewFactors.REPAIR_CESS AS 'NewFactorsRepairCess',
+NewFactors.REPAIR_CESSLASTUPDATEDATE AS 'NewRepairCessEffectiveFrom',
+NewFactors.PROPERTY_TAX AS 'NewFactorsPropertyTax',
+NewFactors.PROPERTY_MISCLASTUPDATEDATE AS 'NewPropertyTaxEffectiveFrom',
+NewFactors.MISC AS 'NewFactorsMisc',
+NewFactors.MISC_TLASTUPDATEDATE AS 'NewMiscEffectiveFrom',
+NewFactors.CHEQUE_RETURN_CHARGE AS 'NewFactorsChequeReturn',
+NewFactors.EffectiveFrom AS 'NewFactorEffectiveFrom',
+OldFactors.ID AS 'OldFactorsID',
+OldFactors.TENANT_ID AS 'OldFactorsTenantID',
+OldFactors.BASIC_RENT AS 'OldFactorsBasicRent',
+OldFactors.BASIC_RENTLASTUPDATEDATE AS 'OldBasicRentEffectiveFrom',
+OldFactors.REPAIR_CESS AS 'OldFactorsRepairCess',
+OldFactors.REPAIR_CESSLASTUPDATEDATE AS 'OldRepairCessEffectiveFrom',
+OldFactors.PROPERTY_TAX AS 'OldFactorsPropertyTax',
+OldFactors.PROPERTY_MISCLASTUPDATEDATE AS 'OldPropertyTaxEffectiveFrom',
+OldFactors.MISC AS 'OldFactorsMisc',
+OldFactors.MISC_TLASTUPDATEDATE AS 'OldMiscEffectiveFrom',
+OldFactors.CHEQUE_RETURN_CHARGE AS 'OldFactorsChequeReturn',
+OldFactors.EffectiveTill AS 'OldFactorsEffectiveTill',
+OldFactors.FinancialYear
+FROM 
+TENANTS_RENT_FACTORS NewFactors LEFT JOIN TENANTS_RENT_FACTORS_HISTORY OldFactors 
+ON NewFactors.ID = OldFactors.ID
+WHERE NewFactors.FinancialYear = @FinancialYear OR OldFactors.FinancialYear = @FinancialYear;
+END
+GO
+/****** Object:  StoredProcedure [dbo].[SP_GetTenantPreviousYearOutstandinds]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROC [dbo].[SP_GetTenantPreviousYearOutstandinds] @TenantID UNIQUEIDENTIFIER
+AS
+BEGIN
+	SELECT * FROM TENANT_OUTSTANDINGS WHERE TENANT_ID = @TenantID;
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_GETTENANTS]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE PROC [dbo].[SP_GETTENANTS]
+AS
+BEGIN
+		SELECT 
+		T.TENANT_ID,
+		T.PROPERTY_ID,
+		T.TENANT_NAME,
+		T.SALUTATION,
+		T.BUILDING_FOOR,
+		T.FLOOR_SORT_VALUE,
+		T.PROPERTY_TYPE,
+		T.PROPERTY_NUMBER, 
+		T.TENANT_MOBILE_NUMBER,
+		T.NOTES,
+		T.CREATED_ON,
+		T.UPDATED_ON,
+		T.TENANCY_DATE,
+		T.TENANCY_END_DATE,
+		T.IS_ACTIVE,
+		T.SendSMS,
+		TR.ID,
+		TR.TENANT_ID AS 'TENANT_ID1',
+		TR.BASIC_RENT,
+		TR.PROPERTY_TAX,
+		TR.REPAIR_CESS,
+		TR.MISC,
+		TR.CHEQUE_RETURN_CHARGE,
+		TR.CREATED_ON AS 'CREATED_ON1',
+		TR.UPDATED_ON AS 'UPDATED_ON1'
+		FROM  
+		dbo.TENANTS T INNER JOIN dbo.TENANTS_RENT_FACTORS TR
+		ON
+		T.TENANT_ID = TR.TENANT_ID
+		
+		
+END
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_MAKE_OUTSTANDING_PAYMENT]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[SP_MAKE_OUTSTANDING_PAYMENT]
+@TENANT_ID uniqueidentifier,
+@PROPERTY_ID uniqueidentifier,
+@RENT_MONTH date,
+@PENALTY_AMOUNT int,
+@CURRENT_RENT int ,
+@RECEIVED_AMOUNT int,
+@PAYMENT_METHOD int,
+@CHEQUE_NUMBER varchar(20),
+@CHEQUE_DATE date,
+@BANK_NAME VARCHAR(30),
+@BANK_BRANCH varchar(20),
+@PAYMENT_TYPE INT,
+@OUTSTANDING_TYPE INT
+AS
+BEGIN
+	DECLARE @GroupPaymentID UNIQUEIDENTIFIER;
+	DECLARE @PaymentID UNIQUEIDENTIFIER;
+	SET @GroupPaymentID = NEWID();
+	SET @PaymentID = NEWID();
+	
+	DECLARE @OUTSTANDING_ID UNIQUEIDENTIFIER;
+	DECLARE @OUTSTANDING_AMOUNT INT;
+	DECLARE @REMANING_AMOUNT INT;
+	
+	-----------------------------------------------------------------
+	
+	SELECT @OUTSTANDING_ID = ID, @OUTSTANDING_AMOUNT = OUTSTANDING_AMOUNT 
+	FROM TENANT_OUTSTANDINGS 
+	WHERE 
+	TENANT_ID = @TENANT_ID AND 
+	OUTSTANDING_TYPE = @OUTSTANDING_TYPE AND 
+	OUTSTANDING_AS_ON = @RENT_MONTH;
+	
+	SET @REMANING_AMOUNT = @OUTSTANDING_AMOUNT - @RECEIVED_AMOUNT;
+	
+	UPDATE TENANT_OUTSTANDINGS 
+	SET OUTSTANDING_AMOUNT = @REMANING_AMOUNT 
+	WHERE ID = @OUTSTANDING_ID;
+	
+	-----------------------------------------------------------------
+	
+	INSERT INTO TENANT_OUTSTANDING_PAYMENT_MAPPINGS 
+	(
+		ID,
+		TENANT_OUTSTANDING_ID,
+		PAYMENT_ID,
+		CREATED_ON
+	 ) 
+	 VALUES
+	(
+		NEWID(),
+	    @OUTSTANDING_ID,
+	    @PaymentID,
+	    GETDATE()
+	 );
+	-----------------------------------------------------------------
+	INSERT INTO 
+	TENANT_PAYMENT_ENTRIES 
+	(
+		ID,
+		TENANT_ID, 
+		PROPERTY_ID, 
+		RENT_MONTH, 
+		PENALTY_AMOUNT, 
+		CURRENT_RENT, 
+		RECEIVED_AMOUNT, 
+		PAYMENT_METHOD,
+		CHEQUE_NUMBER,
+		CHEQUE_DATE, 
+		BANK_NAME, 
+		BANK_BRANCH, 
+		ENTRY_CREATED_ON, 
+		ENTRY_UPDATED_ON,
+		GROUP_PAYMENT_ID,
+		PAYMENT_TYPE
+	)
+	VALUES
+	(
+		@PaymentID,
+		@TENANT_ID,
+		@PROPERTY_ID,
+		@RENT_MONTH ,
+		@PENALTY_AMOUNT ,
+		@CURRENT_RENT  ,
+		@RECEIVED_AMOUNT ,
+		@PAYMENT_METHOD ,
+		@CHEQUE_NUMBER ,
+		@CHEQUE_DATE ,
+		@BANK_NAME ,
+		@BANK_BRANCH,
+		GETDATE(),
+		GETDATE(),
+		@GroupPaymentID,
+		@PAYMENT_TYPE
+	);
+	
+	-----------------------------------------------------------------
+	
+	
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_MAKE_PARTIAL_PAYMENT]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[SP_MAKE_PARTIAL_PAYMENT]
+@TENANT_ID uniqueidentifier,
+@PROPERTY_ID uniqueidentifier,
+@RENT_MONTH date,
+@PENALTY_AMOUNT int,
+@CURRENT_RENT int ,
+@RECEIVED_AMOUNT int,
+@REMAINING_OUTSTANDING_AMOUNT INT,
+@PAYMENT_METHOD int,
+@CHEQUE_NUMBER varchar(20),
+@CHEQUE_DATE date,
+@BANK_NAME VARCHAR(30),
+@BANK_BRANCH varchar(20),
+@PAYMENT_TYPE INT
+AS
+BEGIN
+	DECLARE @GroupPaymentID UNIQUEIDENTIFIER;
+	DECLARE @PaymentID UNIQUEIDENTIFIER;
+	DECLARE @OutstandingPaymentID UNIQUEIDENTIFIER;
+	
+	SET @GroupPaymentID = NEWID();
+	SET @PaymentID = NEWID();
+	SET @OutstandingPaymentID = NEWID();
+	----------------------------------------------------------------
+	
+	INSERT INTO TENANT_OUTSTANDINGS
+	(
+		ID,
+		TENANT_ID,
+		OUTSTANDING_TYPE,
+		OUTSTANDING_AMOUNT,
+		OUTSTANDING_AS_ON,
+		CREATED_ON,
+		UPDATED_ON
+	)
+	VALUES
+	(
+		@OutstandingPaymentID,
+		@TENANT_ID,
+		2,
+		@REMAINING_OUTSTANDING_AMOUNT,
+		@RENT_MONTH,
+		GETDATE(),
+		GETDATE()
+	)
+	
+	-------------------------------------------------------------------------
+	
+	
+	INSERT INTO TENANT_OUTSTANDING_PAYMENT_MAPPINGS 
+	(
+		ID,
+		TENANT_OUTSTANDING_ID,
+		PAYMENT_ID,
+		CREATED_ON
+	 ) 
+	 VALUES
+	(
+		NEWID(),
+	    @OutstandingPaymentID,
+	    @PaymentID,
+	    GETDATE()
+	 );
+	
+	-------------------------------------------------------------------------
+	INSERT INTO 
+	TENANT_PAYMENT_ENTRIES 
+	(
+		ID,
+		TENANT_ID, 
+		PROPERTY_ID, 
+		RENT_MONTH, 
+		PENALTY_AMOUNT, 
+		CURRENT_RENT, 
+		RECEIVED_AMOUNT, 
+		PAYMENT_METHOD,
+		CHEQUE_NUMBER,
+		CHEQUE_DATE, 
+		BANK_NAME, 
+		BANK_BRANCH, 
+		ENTRY_CREATED_ON, 
+		ENTRY_UPDATED_ON,
+		GROUP_PAYMENT_ID,
+		PAYMENT_TYPE
+	)
+	VALUES
+	(
+		@PaymentID,
+		@TENANT_ID,
+		@PROPERTY_ID,
+		@RENT_MONTH ,
+		@PENALTY_AMOUNT ,
+		@CURRENT_RENT  ,
+		@RECEIVED_AMOUNT ,
+		@PAYMENT_METHOD ,
+		@CHEQUE_NUMBER ,
+		@CHEQUE_DATE ,
+		@BANK_NAME ,
+		@BANK_BRANCH,
+		GETDATE(),
+		GETDATE(),
+		@GroupPaymentID,
+		@PAYMENT_TYPE
+	);
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_MAKE_PAYMENT_ENTRY]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROC [dbo].[SP_MAKE_PAYMENT_ENTRY]
+@TENANT_ID uniqueidentifier,
+@PROPERTY_ID uniqueidentifier,
+@RENT_MONTH date,
+@PENALTY_AMOUNT int,
+@CURRENT_RENT int ,
+@RECEIVED_AMOUNT int,
+@PAYMENT_METHOD int,
+@CHEQUE_NUMBER varchar(20),
+@CHEQUE_DATE date,
+@BANK_NAME VARCHAR(30),
+@BANK_BRANCH varchar(20),
+@PAYMENT_TYPE INT
+AS
+BEGIN
+	DECLARE @GroupPaymentID UNIQUEIDENTIFIER;
+	SET @GroupPaymentID = NEWID();
+	
+	INSERT INTO 
+	TENANT_PAYMENT_ENTRIES 
+	(
+		ID,
+		TENANT_ID, 
+		PROPERTY_ID, 
+		RENT_MONTH, 
+		PENALTY_AMOUNT, 
+		CURRENT_RENT, 
+		RECEIVED_AMOUNT, 
+		PAYMENT_METHOD,
+		CHEQUE_NUMBER,
+		CHEQUE_DATE, 
+		BANK_NAME, 
+		BANK_BRANCH, 
+		ENTRY_CREATED_ON, 
+		ENTRY_UPDATED_ON,
+		GROUP_PAYMENT_ID,
+		PAYMENT_TYPE
+	)
+	VALUES
+	(
+		NEWID(),
+		@TENANT_ID,
+		@PROPERTY_ID,
+		@RENT_MONTH ,
+		@PENALTY_AMOUNT ,
+		@CURRENT_RENT  ,
+		@RECEIVED_AMOUNT ,
+		@PAYMENT_METHOD ,
+		@CHEQUE_NUMBER ,
+		@CHEQUE_DATE ,
+		@BANK_NAME ,
+		@BANK_BRANCH,
+		GETDATE(),
+		GETDATE(),
+		@GroupPaymentID,
+		@PAYMENT_TYPE
+	);
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_TENANT_PENALTY_UPDATE]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE  PROCEDURE [dbo].[SP_TENANT_PENALTY_UPDATE]     
+(    
+    @PenaltyPercentage INT,
+    @EffectiveFrom DATETIME,
+    @FinancialYear VARCHAR(max) 
+)    
+AS    
+BEGIN    
+
+/****************************************************************************    
+* Step 1    
+* INSERT NEW TENANT PENALTY IN   PENALTY_INTEREST_UPDATES TABLE
+****************************************************************************/    
+
+INSERT INTO PENALTY_INTEREST_UPDATES 
+(
+INTEREST_RATE,
+CREATED_ON
+) 
+VALUES 
+(
+@PenaltyPercentage,
+GETDATE()
+);
+
+/****************************************************************************    
+* Step 2    
+* LOAD ALL THE OLD TENANT PENALTY IN HSOTORY TABLE AND LOAD THE NEW PANELTY FACTORS IN ORGINAL TABLE
+****************************************************************************/    
+   
+INSERT INTO PENALTY_INTEREST_HISTORY 
+(
+	ORIGINAL_ID ,
+	INTEREST_RATE ,
+	EFFECTIVE_FROM ,
+	CREATED_ON ,
+	UPDATED_ON
+)
+SELECT 
+	ID, 
+	INTEREST_RATE,
+	EFFECTIVE_FROM,
+	CREATED_ON,
+	UPDATED_ON 
+FROM 
+PENALTY_INTEREST_MASTER;
+    
+/****************************************************************************    
+* Step 3    
+* UPDATE TENNANT PENALTY IN PENALTY_INTEREST_MASTER
+****************************************************************************/    
+    
+  
+UPDATE PENALTY_INTEREST_MASTER     
+SET 
+INTEREST_RATE = @PenaltyPercentage,
+EFFECTIVE_FROM = @EffectiveFrom,
+CREATED_ON = GETDATE(),
+UPDATED_ON = GETDATE()
+
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_UPDATE_PENALTY_PERCENTAGE]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROC [dbo].[SP_UPDATE_PENALTY_PERCENTAGE]
+@ID UNIQUEIDENTIFIER,
+@INTEREST_RATE INT,
+@EFFECTIVE_FROM_DATE DATE
+AS
+BEGIN
+	UPDATE PENALTY_INTEREST_MASTER 
+	SET
+	INTEREST_RATE = @INTEREST_RATE,
+	EFFECTIVE_FROM = @EFFECTIVE_FROM_DATE
+	WHERE
+	ID = @ID;
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_UPDATE_TENANT]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROC [dbo].[SP_UPDATE_TENANT]
+@TENANT_ID UNIQUEIDENTIFIER,
+@TENANCY_DATE DATE,
+@PROPERTY_ID UNIQUEIDENTIFIER,
+@TENANT_NAME VARCHAR(MAX),
+@SALUTATION CHAR(5),
+@BUILDING_FOOR varchar(max),
+@PROPERTY_TYPE CHAR(50),
+@PROPERTY_NUMBER varchar(max),
+@TENANT_MOBILE_NUMBER VARCHAR(15),
+@NOTES VARCHAR(MAX),
+@BASIC_RENT INT,
+@PROPERTY_TAX INT,
+@REPAIR_CESS INT,
+@MISC INT,
+@CHEQUE_RETURN_CHARGE INT,
+@SEND_SMS BIT
+AS
+BEGIN
+	
+		UPDATE dbo.TENANTS 
+		SET
+		PROPERTY_ID = @PROPERTY_ID, 
+		TENANT_NAME = @TENANT_NAME, 
+		SALUTATION = @SALUTATION, 
+		BUILDING_FOOR = @BUILDING_FOOR, 
+		PROPERTY_TYPE = @PROPERTY_TYPE,
+		PROPERTY_NUMBER = @PROPERTY_NUMBER,
+		TENANT_MOBILE_NUMBER = @TENANT_MOBILE_NUMBER,
+		NOTES = @NOTES,
+		UPDATED_ON = GETDATE(),
+		SendSMS = @SEND_SMS
+		WHERE
+		TENANT_ID = @TENANT_ID;
+		-----------------------------------------------------------
+		-----------------------------------------------------------
+		UPDATE dbo.TENANTS_RENT_FACTORS
+		SET
+		BASIC_RENT = @BASIC_RENT,
+		PROPERTY_TAX = @PROPERTY_TAX,
+		REPAIR_CESS = @REPAIR_CESS,
+		MISC = @MISC,
+		CHEQUE_RETURN_CHARGE = @CHEQUE_RETURN_CHARGE,
+		UPDATED_ON = GETDATE()
+		WHERE
+		TENANT_ID = @TENANT_ID;
+END
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[SP_UPDATEPROPERTY]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+/****** Object:  Table [dbo].[Property]    Script Date: 04/27/2020 13:11:36 ******/
+
+CREATE PROC [dbo].[SP_UPDATEPROPERTY]
+@ID UNIQUEIDENTIFIER,
+@LANDLORD_NAME VARCHAR(100), 
+@PROPERTY_NAME VARCHAR(50),
+@PROPERTY_BILL_NAME VARCHAR(50),
+@WARD VARCHAR(10),
+@NUMBER_OF_BLOCKS INT,
+@ADDRESS VARCHAR(MAX),
+@PHONE_NUMBER VARCHAR(MAX),
+@FAX_NUMBER VARCHAR(MAX)
+AS
+BEGIN
+UPDATE dbo.Property
+SET 
+LANDLORD_NAME = @LANDLORD_NAME,
+PROPERTY_NAME = @PROPERTY_NAME,
+PROPERTY_BILL_NAME = @PROPERTY_BILL_NAME,
+WARD = @WARD,
+NUMBER_OF_BLOCKS = @NUMBER_OF_BLOCKS,
+ADDRESS = @ADDRESS,
+UPDATED_ON = GETDATE(),
+PHONE_NUMBER = @PHONE_NUMBER,
+FAX_NUMBER = @FAX_NUMBER
+WHERE PROPERTY_ID = @ID;
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[TenantFactorsTotalUpdate]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[TenantFactorsTotalUpdate]     
+(    
+    @BasicRentPercentage decimal(18,2),            
+    @PropertyTaxPercentage decimal(18,2),    
+    @RepairCessPercenatage decimal(18,2),    
+    @MiscPercenatage decimal(18,2),
+    @EffectiveFrom DATETIME,
+    @FinancialYear varchar(max),
+	@ErrorMessage  varchar(900) OUTPUT
+    
+)    
+AS    
+    
+    SET NOCOUNT ON;    
+    
+/******************************    
+*  Variable Declarations    
+*******************************/    
+    DECLARE     @ErrorCode  varchar(200)       
+    DECLARE     @ErrorStep  varchar(200)      
+    DECLARE		@BatchID UNIQUEIDENTIFIER;
+    
+    
+/******************************    
+*  Initialize Variables    
+*******************************/    
+    
+    SELECT @ErrorCode = @@ERROR    
+    SET @BatchID = NEWID();
+BEGIN TRY    
+    
+    BEGIN TRAN    
+        /****************************************************************************    
+        * Step 1    
+        * INSERT NEW TENANT FACTORS IN   TenanatFactorUpdate TABLE
+        ****************************************************************************/    
+  SELECT @ErrorStep = 'Error in Inserting percentage';    
+      
+  insert into TenanatFactorUpdate (BasicRentPercentage,PropertyTaxPercentage,RepaircessPercentage,MiscPercentage,CreatedOn)    
+  values(@BasicRentPercentage,@PropertyTaxPercentage,@RepairCessPercenatage,@MiscPercenatage,getdate())    
+    
+        /****************************************************************************    
+        * Step 2    
+        * LOAD ALL THE OLD TENANT FACTORS IN HSOTORY TABLE AND LOAD THE NEW TENANT FACTORS IN ORGINAL TABLE
+        ****************************************************************************/    
+        SELECT @ErrorStep = 'Error in copying the notes'    
+    
+	
+	insert into TENANTS_RENT_FACTORS_HISTORY (ID,TENANT_ID,BASIC_RENT,PROPERTY_TAX,REPAIR_CESS,MISC,CHEQUE_RETURN_CHARGE,CREATED_ON    
+,UPDATED_ON,BASIC_RENTLASTUPDATEDATE,PROPERTY_MISCLASTUPDATEDATE,REPAIR_CESSLASTUPDATEDATE,MISC_TLASTUPDATEDATE,EffectiveTill,FinancialYear,BatchID)
+        SELECT ID,TENANT_ID,BASIC_RENT,PROPERTY_TAX,REPAIR_CESS,MISC,CHEQUE_RETURN_CHARGE,CREATED_ON    
+,UPDATED_ON,BASIC_RENTLASTUPDATEDATE,PROPERTY_MISCLASTUPDATEDATE,REPAIR_CESSLASTUPDATEDATE,MISC_TLASTUPDATEDATE,@EffectiveFrom,FinancialYear, @BatchID         
+        FROM TENANTS_RENT_FACTORS    
+    
+        /****************************************************************************    
+        * Step 3    
+        * UPDATE TENNANT FACTORS DEPENDING UPON THE PERCENTAGES FOR ALL TENANTS  
+        ****************************************************************************/    
+    
+    
+    update TENANTS_RENT_FACTORS     
+    set BASIC_RENT = case     
+    when @BasicRentPercentage <> 0 then  BASIC_RENT + (BASIC_RENT * @BasicRentPercentage / 100)  
+	
+    else BASIC_RENT end,    
+    PROPERTY_TAX = case     
+    when @PropertyTaxPercentage <> 0 then PROPERTY_TAX + (PROPERTY_TAX * @PropertyTaxPercentage / 100)    
+    else PROPERTY_TAX end,    
+    REPAIR_CESS = case    
+    when @RepairCessPercenatage <> 0 then REPAIR_CESS + (REPAIR_CESS * @RepairCessPercenatage / 100)    
+    else REPAIR_CESS end,    
+    MISC = case    
+    when @MiscPercenatage <> 0 then MISC + (MISC * @MiscPercenatage / 100)    
+    else MISC end,
+    IsFactorsUpdated = 1,
+    EffectiveFrom = @EffectiveFrom,
+    FinancialYear = @FinancialYear   
+    
+    /****************************************************************************    
+        * Step 4    
+        * UPDATE EFFECTIVE FROM AND TILL DATES OF TENANT FACTORS
+     ****************************************************************************/    
+     
+     IF @BasicRentPercentage > 0
+     BEGIN
+		-- EFFECTIVE FROM
+		UPDATE TENANTS_RENT_FACTORS SET BASIC_RENTLASTUPDATEDATE = @EffectiveFrom;
+		-- EFFECTIVE TILL
+		--UPDATE TENANTS_RENT_FACTORS_HISTORY SET BASIC_RENTLASTUPDATEDATE = @EffectiveFrom WHERE BatchID = @BatchID;
+     END
+     ---------------------------------------------------------------------------
+     IF @PropertyTaxPercentage > 0
+     BEGIN
+		-- EFFECTIVE FROM
+		UPDATE TENANTS_RENT_FACTORS SET PROPERTY_MISCLASTUPDATEDATE = @EffectiveFrom;
+		-- EFFECTIVE TILL
+		--UPDATE TENANTS_RENT_FACTORS_HISTORY SET PROPERTY_MISCLASTUPDATEDATE = @EffectiveFrom WHERE BatchID = @BatchID;
+     END
+     ---------------------------------------------------------------------------
+     IF @RepairCessPercenatage > 0
+     BEGIN
+		-- EFFECTIVE FROM
+		UPDATE TENANTS_RENT_FACTORS SET REPAIR_CESSLASTUPDATEDATE = @EffectiveFrom;
+		-- EFFECTIVE TILL
+		--UPDATE TENANTS_RENT_FACTORS_HISTORY SET REPAIR_CESSLASTUPDATEDATE = @EffectiveFrom WHERE BatchID = @BatchID;
+     END
+     ---------------------------------------------------------------------------
+     IF @MiscPercenatage > 0
+     BEGIN
+		-- EFFECTIVE FROM
+		UPDATE TENANTS_RENT_FACTORS SET MISC_TLASTUPDATEDATE = @EffectiveFrom;
+		-- EFFECTIVE TILL
+		--UPDATE TENANTS_RENT_FACTORS_HISTORY SET MISC_TLASTUPDATEDATE = @EffectiveFrom WHERE BatchID = @BatchID;
+     END
+     
+     
+    COMMIT TRAN    
+    
+    SELECT  @ErrorCode  = 'All data was moved over'    
+    
+    /*************************************    
+    *  Return from the Stored Procedure    
+    *************************************/
+	set @ErrorMessage = @ErrorCode 
+                                   -- =0 if success,  <>0 if failure    
+    
+END TRY    
+    
+BEGIN CATCH    
+    /*************************************    
+    *  Get the Error Message for @@Error    
+    *************************************/    
+    IF @@TRANCOUNT > 0 ROLLBACK    
+    
+    set @ErrorMessage = CAST(ERROR_NUMBER() AS VARCHAR(900))  
+        + @ErrorStep + ' '    
+        + cast(ERROR_NUMBER() as varchar(20)) + ' line: '    
+        + cast(ERROR_LINE() as varchar(20)) + ' '     
+        + ERROR_MESSAGE() + ' > '     
+        + ERROR_PROCEDURE()    
+    
+    /*************************************    
+    *  Return from the Stored Procedure    
+    *************************************/    
+                                -- =0 if success,  <>0 if failure    
+    
+END CATCH
+
+GO
+/****** Object:  Table [dbo].[PENALTY_INTEREST_HISTORY]    Script Date: 10-12-2021 15:21:06 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[PENALTY_INTEREST_HISTORY](
+	[ID] [int] IDENTITY(1,1) NOT NULL,
+	[ORIGINAL_ID] [uniqueidentifier] NULL,
+	[INTEREST_RATE] [int] NULL,
+	[EFFECTIVE_FROM] [datetime] NULL,
+	[CREATED_ON] [datetime] NULL,
+	[UPDATED_ON] [datetime] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+
+GO
+/****** Object:  Table [dbo].[PENALTY_INTEREST_MASTER]    Script Date: 10-12-2021 15:21:08 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[PENALTY_INTEREST_MASTER](
+	[ID] [uniqueidentifier] NOT NULL,
+	[INTEREST_RATE] [int] NOT NULL,
+	[EFFECTIVE_FROM] [date] NULL,
+	[CREATED_ON] [datetime] NULL,
+	[UPDATED_ON] [datetime] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+
+GO
+/****** Object:  Table [dbo].[PENALTY_INTEREST_UPDATES]    Script Date: 10-12-2021 15:21:08 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[PENALTY_INTEREST_UPDATES](
+	[ID] [int] IDENTITY(1,1) NOT NULL,
+	[INTEREST_RATE] [int] NULL,
+	[CREATED_ON] [datetime] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+
+GO
+/****** Object:  Table [dbo].[Property]    Script Date: 10-12-2021 15:21:08 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+SET ANSI_PADDING ON
+GO
+CREATE TABLE [dbo].[Property](
+	[PROPERTY_ID] [uniqueidentifier] NOT NULL,
+	[LANDLORD_NAME] [varchar](100) NULL,
+	[PROPERTY_NAME] [varchar](50) NOT NULL,
+	[PROPERTY_BILL_NAME] [varchar](50) NOT NULL,
+	[WARD] [varchar](10) NULL,
+	[NUMBER_OF_BLOCKS] [int] NOT NULL,
+	[ADDRESS] [varchar](max) NOT NULL,
+	[CREATED_ON] [datetime] NULL,
+	[UPDATED_ON] [datetime] NULL,
+	[PHONE_NUMBER] [varchar](12) NULL,
+	[FAX_NUMBER] [varchar](12) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[PROPERTY_ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
+GO
+SET ANSI_PADDING OFF
+GO
+/****** Object:  Table [dbo].[TenanatFactorUpdate]    Script Date: 10-12-2021 15:21:08 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[TenanatFactorUpdate](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[BasicRentPercentage] [decimal](18, 2) NULL,
+	[PropertyTaxPercentage] [decimal](18, 2) NULL,
+	[RepaircessPercentage] [decimal](18, 2) NULL,
+	[MiscPercentage] [decimal](18, 2) NULL,
+	[CreatedOn] [datetime] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+
+GO
+/****** Object:  Table [dbo].[TENANT_DEBIT_NOTES]    Script Date: 10-12-2021 15:21:08 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+SET ANSI_PADDING ON
+GO
+CREATE TABLE [dbo].[TENANT_DEBIT_NOTES](
+	[ID] [int] IDENTITY(1,1) NOT NULL,
+	[TENANT_ID] [uniqueidentifier] NULL,
+	[FOR_DESCRIPTION] [varchar](100) NULL,
+	[FROM_DATE] [datetime] NULL,
+	[TO_DATE] [datetime] NULL,
+	[AMOUNT] [varchar](max) NULL,
+	[DUE_DATE] [datetime] NULL,
+	[CREATED_ON] [datetime] NULL,
+	[UPDATED_ON] [datetime] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
+GO
+SET ANSI_PADDING OFF
+GO
+/****** Object:  Table [dbo].[TENANT_OUTSTANDING_PAYMENT_MAPPINGS]    Script Date: 10-12-2021 15:21:08 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[TENANT_OUTSTANDING_PAYMENT_MAPPINGS](
+	[ID] [uniqueidentifier] NOT NULL,
+	[TENANT_OUTSTANDING_ID] [uniqueidentifier] NULL,
+	[PAYMENT_ID] [uniqueidentifier] NULL,
+	[CREATED_ON] [datetime] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+
+GO
+/****** Object:  Table [dbo].[TENANT_OUTSTANDINGS]    Script Date: 10-12-2021 15:21:08 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[TENANT_OUTSTANDINGS](
+	[ID] [uniqueidentifier] NOT NULL,
+	[TENANT_ID] [uniqueidentifier] NULL,
+	[OUTSTANDING_TYPE] [int] NULL,
+	[OUTSTANDING_AMOUNT] [int] NULL,
+	[OUTSTANDING_AS_ON] [datetime] NULL,
+	[CREATED_ON] [datetime] NULL,
+	[UPDATED_ON] [datetime] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+
+GO
+/****** Object:  Table [dbo].[TENANT_PAYMENT_ENTRIES]    Script Date: 10-12-2021 15:21:08 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+SET ANSI_PADDING ON
+GO
+CREATE TABLE [dbo].[TENANT_PAYMENT_ENTRIES](
+	[ID] [uniqueidentifier] NOT NULL,
+	[TENANT_ID] [uniqueidentifier] NULL,
+	[PROPERTY_ID] [uniqueidentifier] NULL,
+	[RENT_MONTH] [date] NULL,
+	[PENALTY_AMOUNT] [int] NULL,
+	[CURRENT_RENT] [int] NULL,
+	[RECEIVED_AMOUNT] [int] NULL,
+	[PAYMENT_METHOD] [int] NULL,
+	[CHEQUE_NUMBER] [varchar](20) NULL,
+	[CHEQUE_DATE] [date] NULL,
+	[BANK_NAME] [varchar](30) NULL,
+	[BANK_BRANCH] [varchar](20) NULL,
+	[ENTRY_CREATED_ON] [datetime] NULL,
+	[ENTRY_UPDATED_ON] [datetime] NULL,
+	[GROUP_PAYMENT_ID] [uniqueidentifier] NULL,
+	[PAYMENT_TYPE] [int] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+
+GO
+SET ANSI_PADDING OFF
+GO
+/****** Object:  Table [dbo].[TENANTS]    Script Date: 10-12-2021 15:21:08 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+SET ANSI_PADDING ON
+GO
+CREATE TABLE [dbo].[TENANTS](
+	[TENANT_ID] [uniqueidentifier] NOT NULL,
+	[PROPERTY_ID] [uniqueidentifier] NULL,
+	[TENANT_NAME] [varchar](max) NULL,
+	[SALUTATION] [char](5) NULL,
+	[BUILDING_FOOR] [varchar](max) NULL,
+	[PROPERTY_TYPE] [nvarchar](max) NULL,
+	[PROPERTY_NUMBER] [varchar](max) NULL,
+	[TENANT_MOBILE_NUMBER] [varchar](15) NULL,
+	[NOTES] [varchar](max) NULL,
+	[CREATED_ON] [datetime] NULL,
+	[UPDATED_ON] [datetime] NULL,
+	[TENANCY_DATE] [date] NULL,
+	[TENANT_CODE] [int] NULL,
+	[IS_ACTIVE] [bit] NULL,
+	[TENANCY_END_DATE] [datetime] NULL,
+	[FLOOR_SORT_VALUE] [int] NULL,
+	[SendSMS] [bit] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[TENANT_ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
+GO
+SET ANSI_PADDING OFF
+GO
+/****** Object:  Table [dbo].[TENANTS_RENT_FACTORS]    Script Date: 10-12-2021 15:21:08 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+SET ANSI_PADDING ON
+GO
+CREATE TABLE [dbo].[TENANTS_RENT_FACTORS](
+	[ID] [uniqueidentifier] NOT NULL,
+	[TENANT_ID] [uniqueidentifier] NULL,
+	[BASIC_RENT] [int] NULL,
+	[PROPERTY_TAX] [int] NULL,
+	[REPAIR_CESS] [int] NULL,
+	[MISC] [int] NULL,
+	[CHEQUE_RETURN_CHARGE] [int] NULL,
+	[CREATED_ON] [datetime] NULL,
+	[UPDATED_ON] [datetime] NULL,
+	[BASIC_RENTLASTUPDATEDATE] [datetime] NULL,
+	[PROPERTY_MISCLASTUPDATEDATE] [datetime] NULL,
+	[REPAIR_CESSLASTUPDATEDATE] [datetime] NULL,
+	[MISC_TLASTUPDATEDATE] [datetime] NULL,
+	[TENANT_CODE] [int] NULL,
+	[IsFactorsUpdated] [bit] NULL,
+	[EffectiveFrom] [datetime] NULL,
+	[FinancialYear] [varchar](max) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
+GO
+SET ANSI_PADDING OFF
+GO
+/****** Object:  Table [dbo].[TENANTS_RENT_FACTORS_HISTORY]    Script Date: 10-12-2021 15:21:08 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+SET ANSI_PADDING ON
+GO
+CREATE TABLE [dbo].[TENANTS_RENT_FACTORS_HISTORY](
+	[OriginalID] [int] IDENTITY(1,1) NOT NULL,
+	[OriginalCreatedOn] [datetime] NULL,
+	[ID] [uniqueidentifier] NOT NULL,
+	[TENANT_ID] [uniqueidentifier] NULL,
+	[BASIC_RENT] [int] NULL,
+	[PROPERTY_TAX] [int] NULL,
+	[REPAIR_CESS] [int] NULL,
+	[MISC] [int] NULL,
+	[CHEQUE_RETURN_CHARGE] [int] NULL,
+	[CREATED_ON] [datetime] NULL,
+	[UPDATED_ON] [datetime] NULL,
+	[BASIC_RENTLASTUPDATEDATE] [datetime] NULL,
+	[PROPERTY_MISCLASTUPDATEDATE] [datetime] NULL,
+	[REPAIR_CESSLASTUPDATEDATE] [datetime] NULL,
+	[MISC_TLASTUPDATEDATE] [datetime] NULL,
+	[EffectiveTill] [datetime] NULL,
+	[FinancialYear] [varchar](max) NULL,
+	[BatchID] [uniqueidentifier] NOT NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[OriginalID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
+GO
+SET ANSI_PADDING OFF
+GO
+INSERT [dbo].[PENALTY_INTEREST_MASTER] ([ID], [INTEREST_RATE], [EFFECTIVE_FROM], [CREATED_ON], [UPDATED_ON]) VALUES (N'acde4115-ad01-4bc8-944a-696b9ed140a6', 21, CAST(0xEB400B00 AS Date), CAST(0x0000AC2E011E02AE AS DateTime), CAST(0x0000AC2E011E02AE AS DateTime))
+INSERT [dbo].[Property] ([PROPERTY_ID], [LANDLORD_NAME], [PROPERTY_NAME], [PROPERTY_BILL_NAME], [WARD], [NUMBER_OF_BLOCKS], [ADDRESS], [CREATED_ON], [UPDATED_ON], [PHONE_NUMBER], [FAX_NUMBER]) VALUES (N'ab23f556-57ec-4461-9a63-9975f3b67b50', N'Jay Kajaria & Bina Kajaria', N'JAY MAHAL ESTATE', N'JAY KAJARIA & BINA KAJARIA', N'B', 100, N'20/48, LOHAR CHAWL OR 39, KITCHEN GARDEN LANE, MUMBAI-4000002', CAST(0x0000ABF2015D505F AS DateTime), CAST(0x0000AC3B0185C911 AS DateTime), N'2208 3250', N'22062840')
+SET IDENTITY_INSERT [dbo].[TenanatFactorUpdate] ON 
+
+INSERT [dbo].[TenanatFactorUpdate] ([Id], [BasicRentPercentage], [PropertyTaxPercentage], [RepaircessPercentage], [MiscPercentage], [CreatedOn]) VALUES (1, CAST(0.00 AS Decimal(18, 2)), CAST(0.00 AS Decimal(18, 2)), CAST(0.00 AS Decimal(18, 2)), CAST(56.48 AS Decimal(18, 2)), CAST(0x0000ACB800CC0642 AS DateTime))
+INSERT [dbo].[TenanatFactorUpdate] ([Id], [BasicRentPercentage], [PropertyTaxPercentage], [RepaircessPercentage], [MiscPercentage], [CreatedOn]) VALUES (2, CAST(0.00 AS Decimal(18, 2)), CAST(0.00 AS Decimal(18, 2)), CAST(0.00 AS Decimal(18, 2)), CAST(56.48 AS Decimal(18, 2)), CAST(0x0000ACB800CC0FE1 AS DateTime))
+INSERT [dbo].[TenanatFactorUpdate] ([Id], [BasicRentPercentage], [PropertyTaxPercentage], [RepaircessPercentage], [MiscPercentage], [CreatedOn]) VALUES (3, CAST(0.00 AS Decimal(18, 2)), CAST(0.00 AS Decimal(18, 2)), CAST(0.00 AS Decimal(18, 2)), CAST(0.00 AS Decimal(18, 2)), CAST(0x0000AD4900E9791C AS DateTime))
+SET IDENTITY_INSERT [dbo].[TenanatFactorUpdate] OFF
+SET IDENTITY_INSERT [dbo].[TENANT_DEBIT_NOTES] ON
