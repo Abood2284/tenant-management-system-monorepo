@@ -54,9 +54,9 @@ function ReportsPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const summaryResponse = await fetch(
-          "http://localhost:8787/api/report/summary"
-        );
+        const workerUrl =
+          process.env.NEXT_PUBLIC_WORKER_URL || "http://localhost:8787";
+        const summaryResponse = await fetch(`${workerUrl}/api/report/summary`);
         if (!summaryResponse.ok) {
           throw new Error("Failed to fetch summary data");
         }
@@ -66,7 +66,7 @@ function ReportsPage() {
         setSummaryData(summaryResult.data);
 
         const propertyWiseResponse = await fetch(
-          "http://localhost:8787/api/report/property-wise"
+          `${workerUrl}/api/report/property-wise`
         );
         if (!propertyWiseResponse.ok) {
           throw new Error("Failed to fetch property-wise data");

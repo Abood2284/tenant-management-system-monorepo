@@ -20,7 +20,12 @@ import {
   or,
   sql,
   desc,
+  ilike,
 } from "drizzle-orm";
+import {
+  getFinancialYearAndQuarter,
+  getPenaltyTriggerDate,
+} from "../lib/dates";
 
 const tenantRoutes = new Hono<{ Bindings: Env }>();
 
@@ -29,15 +34,233 @@ const tenantRoutes = new Hono<{ Bindings: Env }>();
  * Use-case: Assign a new tenant to a property, with details and rent breakdown.
  * Important: Only admin can add tenants. Validates required fields and property linkage.
  */
+// apps/tenant-management-system-worker/src/routes/tenant.ts
+
 tenantRoutes.post("/add", async (c) => {
-  // TODO: Implement tenant creation logic
-  return c.json({ status: 501, message: "Not implemented" });
+  try {
+    const db = c.req.db;
+    const body = await c.req.json();
+    const { tenant, rentFactors } = body;
+
+    if (
+      !tenant.TENANT_NAME ||
+      !tenant.PROPERTY_ID ||
+      !rentFactors.BASIC_RENT ||
+      !rentFactors.PROPERTY_TAX ||
+      !rentFactors.REPAIR_CESS ||
+      !rentFactors.MISC
+    ) {
+      throw new HTTPException(400, { message: "Required fields are missing." });
+    }
+
+    const newTenantResult = await db
+      .insert(TENANTS)
+      .values({
+        PROPERTY_ID: tenant.PROPERTY_ID,
+        TENANT_NAME: tenant.TENANT_NAME,
+        SALUTATION: tenant.SALUTATION,
+        BUILDING_FOOR: tenant.BUILDING_FOOR,
+        PROPERTY_TYPE: tenant.PROPERTY_TYPE,
+        PROPERTY_NUMBER: tenant.PROPERTY_NUMBER,
+        TENANT_MOBILE_NUMBER: tenant.TENANT_MOBILE_NUMBER,
+        NOTES: tenant.NOTES,
+        TENANCY_DATE: tenant.TENANCY_DATE,
+        TENANCY_END_DATE: tenant.TENANCY_END_DATE || null,
+        IS_ACTIVE: tenant.IS_ACTIVE,
+        CREATED_ON: new Date(),
+        UPDATED_ON: new Date(),
+      })
+      .returning();
+
+    const createdTenant = newTenantResult[0];
+
+    await db.insert(TENANTS_RENT_FACTORS).values({
+      TENANT_ID: createdTenant.TENANT_ID,
+      BASIC_RENT: rentFactors.BASIC_RENT,
+      PROPERTY_TAX: rentFactors.PROPERTY_TAX,
+      REPAIR_CESS: rentFactors.REPAIR_CESS,
+      MISC: rentFactors.MISC,
+      CREATED_ON: new Date(),
+      UPDATED_ON: new Date(),
+    });
+
+    // ========== NEW LOGIC: Pre-fill Monthly Tracking Records ==========
+
+    const tenancyDateString = tenant.TENANCY_DATE;
+    const currentDate = new Date();
+
+    // Create a UTC date object to prevent server's timezone from affecting parsing
+    const tenancyDate = new Date(`${tenancyDateString}T00:00:00Z`);
+    // Do not create records for tenancies that start in the future.
+    // The monthly scheduler will handle them when the time comes.
+    if (tenancyDate > currentDate) {
+      console.log(
+        `[TENANT_ADD] Tenancy for ${createdTenant.TENANT_NAME} starts in the future. Skipping pre-fill.`
+      );
+    } else {
+      const recordsToInsert = [];
+      const totalRent =
+        (rentFactors?.BASIC_RENT || 0) +
+        (rentFactors?.PROPERTY_TAX || 0) +
+        (rentFactors?.REPAIR_CESS || 0) +
+        (rentFactors?.MISC || 0);
+
+      // Use Date.UTC to ensure the loop start is timezone-safe
+      let loopMonth = new Date(
+        Date.UTC(tenancyDate.getUTCFullYear(), tenancyDate.getUTCMonth(), 1)
+      );
+      const endMonth = new Date(
+        Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), 1)
+      );
+
+      while (loopMonth <= endMonth) {
+        const { financialYear, quarter } =
+          getFinancialYearAndQuarter(loopMonth);
+
+        recordsToInsert.push({
+          TENANT_ID: createdTenant.TENANT_ID,
+          RENT_MONTH: new Date(loopMonth),
+          RENT_PENDING: totalRent,
+          OUTSTANDING_AMOUNT: 0,
+          PENALTY_AMOUNT: 0,
+          RENT_COLLECTED: 0,
+          OUTSTANDING_COLLECTED: 0,
+          OUTSTANDING_PENDING: 0,
+          PENALTY_PAID: 0,
+          PENALTY_PENDING: 0,
+          FINANCIAL_YEAR: financialYear,
+          QUARTER: quarter,
+        });
+
+        // Move to the next month
+        loopMonth.setUTCMonth(loopMonth.getUTCMonth() + 1);
+      }
+
+      if (recordsToInsert.length > 0) {
+        console.log(
+          `[TENANT_ADD] Pre-filling ${recordsToInsert.length} monthly tracking records for tenant ${createdTenant.TENANT_NAME}.`
+        );
+        await db.insert(MONTHLY_RENT_TRACKING).values(recordsToInsert);
+      }
+    }
+    // =================================================================
+
+    return c.json({
+      status: 200,
+      message: "Tenant created successfully and monthly records pre-filled.",
+      data: { tenantId: createdTenant.TENANT_ID },
+    });
+  } catch (error) {
+    console.error("Error creating tenant:", error);
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: "Failed to create tenant" });
+  }
 });
+
+/**
+ * POST /update
+ * Use-case: Update tenant details and rent factors (partial update allowed).
+ * Accepts: { tenantId, tenant, rentFactors }
+ */
+tenantRoutes.post("/update", async (c) => {
+  try {
+    const db = c.req.db;
+    const body = await c.req.json();
+    const { tenantId, tenant, rentFactors } = body;
+    if (!tenantId) {
+      throw new HTTPException(400, { message: "tenantId is required" });
+    }
+    // Update tenant fields if provided
+    if (tenant && Object.keys(tenant).length > 0) {
+      await db
+        .update(TENANTS)
+        .set({
+          ...(tenant.TENANT_NAME !== undefined && {
+            TENANT_NAME: tenant.TENANT_NAME,
+          }),
+          ...(tenant.PROPERTY_ID !== undefined && {
+            PROPERTY_ID: tenant.PROPERTY_ID,
+          }),
+          ...(tenant.SALUTATION !== undefined && {
+            SALUTATION: tenant.SALUTATION,
+          }),
+          ...(tenant.BUILDING_FOOR !== undefined && {
+            BUILDING_FOOR: tenant.BUILDING_FOOR,
+          }),
+          ...(tenant.PROPERTY_TYPE !== undefined && {
+            PROPERTY_TYPE: tenant.PROPERTY_TYPE,
+          }),
+          ...(tenant.PROPERTY_NUMBER !== undefined && {
+            PROPERTY_NUMBER: tenant.PROPERTY_NUMBER,
+          }),
+          ...(tenant.TENANT_MOBILE_NUMBER !== undefined && {
+            TENANT_MOBILE_NUMBER: tenant.TENANT_MOBILE_NUMBER,
+          }),
+          ...(tenant.NOTES !== undefined && { NOTES: tenant.NOTES }),
+          ...(tenant.TENANCY_DATE !== undefined && {
+            TENANCY_DATE: tenant.TENANCY_DATE,
+          }),
+          ...(tenant.TENANCY_END_DATE !== undefined && {
+            TENANCY_END_DATE: tenant.TENANCY_END_DATE,
+          }),
+          ...(tenant.IS_ACTIVE !== undefined && {
+            IS_ACTIVE: tenant.IS_ACTIVE,
+          }),
+          UPDATED_ON: new Date(),
+        })
+        .where(eq(TENANTS.TENANT_ID, tenantId));
+    }
+    // Update rent factors if provided
+    if (rentFactors && Object.keys(rentFactors).length > 0) {
+      // Find latest rent factors row for this tenant
+      const latest = await db.query.TENANTS_RENT_FACTORS.findFirst({
+        where: eq(TENANTS_RENT_FACTORS.TENANT_ID, tenantId),
+        orderBy: desc(TENANTS_RENT_FACTORS.CREATED_ON),
+      });
+      if (latest) {
+        await db
+          .update(TENANTS_RENT_FACTORS)
+          .set({
+            ...(rentFactors.BASIC_RENT !== undefined && {
+              BASIC_RENT: rentFactors.BASIC_RENT,
+            }),
+            ...(rentFactors.PROPERTY_TAX !== undefined && {
+              PROPERTY_TAX: rentFactors.PROPERTY_TAX,
+            }),
+            ...(rentFactors.REPAIR_CESS !== undefined && {
+              REPAIR_CESS: rentFactors.REPAIR_CESS,
+            }),
+            ...(rentFactors.MISC !== undefined && { MISC: rentFactors.MISC }),
+            UPDATED_ON: new Date(),
+          })
+          .where(eq(TENANTS_RENT_FACTORS.ID, latest.ID));
+      } else {
+        // If no rent factors exist, insert new
+        await db.insert(TENANTS_RENT_FACTORS).values({
+          TENANT_ID: tenantId,
+          BASIC_RENT: rentFactors.BASIC_RENT ?? 0,
+          PROPERTY_TAX: rentFactors.PROPERTY_TAX ?? 0,
+          REPAIR_CESS: rentFactors.REPAIR_CESS ?? 0,
+          MISC: rentFactors.MISC ?? 0,
+          CREATED_ON: new Date(),
+          UPDATED_ON: new Date(),
+        });
+      }
+    }
+    return c.json({ status: 200, message: "Tenant updated successfully" });
+  } catch (error) {
+    console.error("Error updating tenant:", error);
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: "Failed to update tenant" });
+  }
+});
+
+// apps/tenant-management-system-worker/src/routes/tenant.ts
 
 /**
  * GET /detail/:id
  * Use-case: Get detailed tenant information including payment data.
- * Important: Returns tenant details with unpaid months and rent factors.
+ * Important: Returns tenant details with all historical unpaid months and rent factors.
  */
 tenantRoutes.get("/detail/:id", async (c) => {
   try {
@@ -60,32 +283,17 @@ tenantRoutes.get("/detail/:id", async (c) => {
         })
       : null;
 
-    // Get rent factors
+    // Get current rent factors
     const rentFactors = await db.query.TENANTS_RENT_FACTORS.findFirst({
       where: eq(TENANTS_RENT_FACTORS.TENANT_ID, tenantId),
       orderBy: desc(TENANTS_RENT_FACTORS.CREATED_ON),
     });
 
-    const totalRent =
-      (rentFactors?.BASIC_RENT || 0) +
-      (rentFactors?.PROPERTY_TAX || 0) +
-      (rentFactors?.REPAIR_CESS || 0) +
-      (rentFactors?.MISC || 0);
-
-    // Get all monthly tracking data (not just unpaid)
+    // Get all historical monthly tracking data from the database
     const monthlyTracking = await db.query.MONTHLY_RENT_TRACKING.findMany({
       where: eq(MONTHLY_RENT_TRACKING.TENANT_ID, tenantId),
       orderBy: desc(MONTHLY_RENT_TRACKING.RENT_MONTH),
     });
-
-    // Get unpaid months (only past months with pending amounts)
-    const unpaidMonths = monthlyTracking.filter(
-      (month) =>
-        (month.RENT_PENDING > 0 ||
-          month.PENALTY_PENDING > 0 ||
-          month.OUTSTANDING_PENDING > 0) &&
-        new Date(month.RENT_MONTH) <= new Date()
-    );
 
     // Get payment history for the last 12 months
     const paymentHistory = await db.query.TENANT_PAYMENT_ENTRIES.findMany({
@@ -94,26 +302,50 @@ tenantRoutes.get("/detail/:id", async (c) => {
       limit: 12,
     });
 
-    // Calculate total due
-    const totalDue = unpaidMonths.reduce(
-      (sum, month) =>
+    // ==================== MODIFIED LOGIC START ====================
+    const today = new Date();
+
+    // Create the `allMonths` array directly from the fetched monthly tracking data.
+    // This ensures the dropdown shows all historical unpaid months from the database.
+    const allMonths = monthlyTracking
+      .filter((month) => new Date(month.RENT_MONTH) <= today) // Prevent future months from appearing
+      .map((tracking) => {
+        const monthDate = new Date(tracking.RENT_MONTH);
+        const penaltyTriggerDate = getPenaltyTriggerDate(monthDate);
+        return {
+          RENT_MONTH: tracking.RENT_MONTH.toISOString().split("T")[0], // Format as YYYY-MM-DD
+          RENT_PENDING: tracking.RENT_PENDING,
+          PENALTY_PENDING: tracking.PENALTY_PENDING,
+          OUTSTANDING_PENDING: tracking.OUTSTANDING_PENDING,
+          RENT_COLLECTED: tracking.RENT_COLLECTED,
+          PENALTY_PAID: tracking.PENALTY_PAID,
+          OUTSTANDING_COLLECTED: tracking.OUTSTANDING_COLLECTED,
+          isPaid: tracking.RENT_PENDING === 0, // A month is "paid" if rent is zero
+          penaltyTriggerDate: penaltyTriggerDate.toISOString(),
+          penaltyShouldApply: today >= penaltyTriggerDate,
+        };
+      });
+
+    // Calculate total due based on the real data from all months
+    const totalDue = allMonths.reduce((sum, month) => {
+      // Only add to the total if the rent for that month has not been paid
+      if (month.isPaid) {
+        return sum;
+      }
+      return (
         sum +
         (month.RENT_PENDING || 0) +
         (month.PENALTY_PENDING || 0) +
-        (month.OUTSTANDING_PENDING || 0),
-      0
-    );
+        (month.OUTSTANDING_PENDING || 0)
+      );
+    }, 0);
+    // ===================== MODIFIED LOGIC END =====================
 
-    // Get current month tracking
-    const currentDate = new Date();
-    const currentMonth = new Date(
-      currentDate.getFullYear(),
-      currentDate.getMonth(),
-      1
-    );
-    const currentMonthTracking = monthlyTracking.find(
-      (month) => new Date(month.RENT_MONTH).getTime() === currentMonth.getTime()
-    );
+    const totalRent =
+      (rentFactors?.BASIC_RENT || 0) +
+      (rentFactors?.PROPERTY_TAX || 0) +
+      (rentFactors?.REPAIR_CESS || 0) +
+      (rentFactors?.MISC || 0);
 
     return c.json({
       status: 200,
@@ -134,26 +366,8 @@ tenantRoutes.get("/detail/:id", async (c) => {
               PROPERTY_ADDRESS: property.ADDRESS,
             }
           : null,
-        unpaidMonths: unpaidMonths.map((month) => ({
-          RENT_MONTH: month.RENT_MONTH,
-          RENT_PENDING: month.RENT_PENDING,
-          PENALTY_PENDING: month.PENALTY_PENDING,
-          OUTSTANDING_PENDING: month.OUTSTANDING_PENDING,
-          RENT_COLLECTED: month.RENT_COLLECTED,
-          PENALTY_PAID: month.PENALTY_PAID,
-          OUTSTANDING_COLLECTED: month.OUTSTANDING_COLLECTED,
-        })),
-        currentMonth: currentMonthTracking
-          ? {
-              RENT_MONTH: currentMonthTracking.RENT_MONTH,
-              RENT_COLLECTED: currentMonthTracking.RENT_COLLECTED,
-              RENT_PENDING: currentMonthTracking.RENT_PENDING,
-              PENALTY_PAID: currentMonthTracking.PENALTY_PAID,
-              PENALTY_PENDING: currentMonthTracking.PENALTY_PENDING,
-              OUTSTANDING_COLLECTED: currentMonthTracking.OUTSTANDING_COLLECTED,
-              OUTSTANDING_PENDING: currentMonthTracking.OUTSTANDING_PENDING,
-            }
-          : null,
+        allMonths, // This now contains all historical months
+        totalDue, // This now reflects the true total due
         paymentHistory: paymentHistory.map((payment) => ({
           ID: payment.ID,
           RENT_MONTH: payment.RENT_MONTH,
@@ -164,7 +378,6 @@ tenantRoutes.get("/detail/:id", async (c) => {
           PAYMENT_METHOD: payment.PAYMENT_METHOD,
           PAYMENT_DATE: payment.PAYMENT_DATE,
         })),
-        totalDue,
         rentFactors: {
           BASIC_RENT: rentFactors?.BASIC_RENT || 0,
           PROPERTY_TAX: rentFactors?.PROPERTY_TAX || 0,
@@ -172,29 +385,11 @@ tenantRoutes.get("/detail/:id", async (c) => {
           MISC: rentFactors?.MISC || 0,
           totalRent,
         },
-        summary: {
-          totalCollected: paymentHistory.reduce(
-            (sum, payment) => sum + payment.RECEIVED_AMOUNT,
-            0
-          ),
-          totalRentCollected: paymentHistory.reduce(
-            (sum, payment) => sum + (payment.RENT_ALLOCATED || 0),
-            0
-          ),
-          totalPenaltyCollected: paymentHistory.reduce(
-            (sum, payment) => sum + (payment.PENALTY_ALLOCATED || 0),
-            0
-          ),
-          totalOutstandingCollected: paymentHistory.reduce(
-            (sum, payment) => sum + (payment.OUTSTANDING_ALLOCATED || 0),
-            0
-          ),
-          totalPending: totalDue,
-        },
       },
     });
   } catch (error) {
     console.error("Error fetching tenant details:", error);
+    if (error instanceof HTTPException) throw error;
     throw new HTTPException(500, { message: "Failed to fetch tenant details" });
   }
 });
@@ -228,9 +423,9 @@ tenantRoutes.get("/list", async (c) => {
       where = and(
         where,
         or(
-          like(TENANTS.TENANT_NAME, `%${search}%`),
-          like(TENANTS.PROPERTY_NUMBER, `%${search}%`),
-          like(TENANTS.TENANT_MOBILE_NUMBER, `%${search}%`)
+          ilike(TENANTS.TENANT_NAME, `%${search}%`),
+          ilike(TENANTS.PROPERTY_NUMBER, `%${search}%`),
+          ilike(TENANTS.TENANT_MOBILE_NUMBER, `%${search}%`)
         )
       );
     }

@@ -57,7 +57,7 @@ export const MONTHLY_RENT_TRACKING = pgTable("MONTHLY_RENT_TRACKING", {
   TENANT_ID: text("TENANT_ID")
     .references(() => TENANTS.TENANT_ID)
     .notNull(),
-  RENT_MONTH: date("RENT_MONTH").notNull(),
+  RENT_MONTH: date("RENT_MONTH", { mode: "date" }).notNull(),
   RENT_COLLECTED: integer("RENT_COLLECTED").default(0).notNull(),
   RENT_PENDING: integer("RENT_PENDING").default(0).notNull(),
   OUTSTANDING_AMOUNT: integer("OUTSTANDING_AMOUNT").default(0).notNull(),

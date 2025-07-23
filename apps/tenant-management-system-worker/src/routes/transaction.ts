@@ -1,3 +1,5 @@
+// apps/tenant-management-system-worker/src/routes/transaction.ts
+
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { Env, createDbPool } from "..";
@@ -8,8 +10,37 @@ import {
   Property,
 } from "@repo/db/schema"; // Adjust imports as needed
 import { eq, gte, lte, and, sql, like } from "drizzle-orm";
+import { getReceiptData } from "../services/query";
+import { generateBillPdf, IReceiptData } from "../services/billingService";
 
 const transactionRoutes = new Hono<{ Bindings: Env }>();
+
+transactionRoutes.get("/:id/receipt", async (c) => {
+  const { id } = c.req.param();
+  if (!id)
+    throw new HTTPException(400, { message: "Transaction ID is required" });
+
+  try {
+    const receiptData = await getReceiptData(c.req.db, id);
+    if (!receiptData)
+      throw new HTTPException(404, { message: "Receipt data not found" });
+
+    // Generate the PDF
+    const pdfBytes = await generateBillPdf(receiptData as IReceiptData);
+
+    // Set headers for file download
+    c.header("Content-Type", "application/pdf");
+    c.header(
+      "Content-Disposition",
+      `attachment; filename="bill-${receiptData.billNo}.pdf"`
+    );
+    return c.body(pdfBytes);
+  } catch (error) {
+    console.error("Failed to generate PDF receipt:", error);
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: "Failed to generate PDF receipt" });
+  }
+});
 
 /**
  * POST /add
@@ -121,7 +152,10 @@ transactionRoutes.post("/add", async (c) => {
         );
       }
 
-      // Update monthly rent tracking for penalty allocation
+      // === REFACTORED: Handle both paid and waived penalties ===
+      console.log("body.IS_PENALTY_WAIVED", body.IS_PENALTY_WAIVED);
+
+      // Case 1: A portion of the penalty was actually paid.
       if (
         body.PENALTY_ALLOCATED &&
         body.PENALTY_ALLOCATED > 0 &&
@@ -134,10 +168,23 @@ transactionRoutes.post("/add", async (c) => {
             "PENALTY_PAID" = "PENALTY_PAID" + $1,
             "PENALTY_PENDING" = "PENALTY_PENDING" - $1,
             "UPDATED_ON" = NOW()
-          WHERE "TENANT_ID" = $2 
-            AND "RENT_MONTH" = $3
+          WHERE "TENANT_ID" = $2 AND "RENT_MONTH" = $3
         `,
           [body.PENALTY_ALLOCATED, body.TENANT_ID, body.RENT_MONTH]
+        );
+      }
+      // Case 2: The penalty was waived (either by date or manually).
+      else if (body.IS_PENALTY_WAIVED === true && body.RENT_MONTH) {
+        await client.query(
+          `
+          UPDATE "MONTHLY_RENT_TRACKING"
+          SET
+          "PENALTY_PAID" = "PENALTY_PAID" + "PENALTY_PENDING",
+          "PENALTY_PENDING" = 0,
+          "UPDATED_ON" = NOW()
+          WHERE "TENANT_ID" = $1 AND "RENT_MONTH" = $2
+        `,
+          [body.TENANT_ID, body.RENT_MONTH]
         );
       }
 
@@ -254,6 +301,10 @@ transactionRoutes.get("/list", async (c) => {
         t."TENANT_NAME",
         p."PROPERTY_NAME",
         p."PROPERTY_ID",
+        COALESCE(trf."BASIC_RENT", 0) as "BASIC_RENT",
+        COALESCE(trf."PROPERTY_TAX", 0) as "PROPERTY_TAX",
+        COALESCE(trf."REPAIR_CESS", 0) as "REPAIR_CESS",
+        COALESCE(trf."MISC", 0) as "MISC",
         COALESCE(trf."BASIC_RENT", 0) + COALESCE(trf."PROPERTY_TAX", 0) + COALESCE(trf."REPAIR_CESS", 0) + COALESCE(trf."MISC", 0) as "TOTAL_RENT",
         COALESCE(mrt."RENT_PENDING", 0) as "RENT_PENDING",
         COALESCE(mrt."PENALTY_PENDING", 0) as "PENALTY_PENDING",

@@ -1,23 +1,28 @@
 // apps/tenant-management-system-worker/src/index.ts
-// Main entry point for the Tenant Management System worker application
-// This file sets up the Hono server, middleware, and routes
 import { neon, Pool } from "@neondatabase/serverless";
 import * as schema from "@repo/db/schema";
 import { NeonHttpDatabase, drizzle } from "drizzle-orm/neon-http";
-import { Hono } from "hono";
+import { ExecutionContext, Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
+import billingRoutes from "./routes/billing";
 import authRoutes from "./routes/auth";
 import propertyRoutes from "./routes/property";
 import tenantRoutes from "./routes/tenant";
-import billingRoutes from "./routes/billing";
 import transactionRoutes from "./routes/transaction";
 import reportRoutes from "./routes/report";
 import whatsappRoutes from "./routes/whatsapp";
 import settingsRoutes from "./routes/settings";
+import {
+  handleScheduledEvent,
+  registerInternalPenaltyEndpoint,
+  registerManualMonthlyTrackingEndpoint,
+  registerManualPenaltyEndpoint,
+} from "./scheduled";
 
 export interface Env {
+  NODE_ENV: string;
   DATABASE_URL: string;
 }
 
@@ -92,13 +97,15 @@ const errorHandler = createMiddleware(async (c, next) => {
  *   - Use the pooling mechanism (WebSocket driver) for transactional, multi-step, or session-based DB access (used manually in specific routes).
  */
 export const injectDB = createMiddleware(async (c, next) => {
+  if (c.req.method === "OPTIONS") {
+    await next();
+    return;
+  }
+
   try {
     console.log(`Connecting to database...${c.env.DATABASE_URL}`);
-
     const sql = neon(c.env.DATABASE_URL);
-
     c.req.db = drizzle({ client: sql, schema });
-
     await next();
   } catch (error) {
     console.error("Database connection error:", error);
@@ -112,6 +119,7 @@ const configureCORS = () => {
   const allowedOrigins = [
     "http://localhost:3000",
     "https://web.sayyedabood69.workers.dev",
+    "https://web-production.sayyedabood69.workers.dev",
   ];
 
   return cors({
@@ -250,4 +258,29 @@ app.get("/", async (c) => {
   return c.json({ status: 200, message: "Healthy All System Working" });
 });
 
-export default app;
+// Register scheduler endpoints from the separate file
+registerManualMonthlyTrackingEndpoint(app);
+registerManualPenaltyEndpoint(app);
+registerInternalPenaltyEndpoint(app);
+
+// Updated export to handle both HTTP and scheduled events
+export default {
+  // Handle HTTP requests (your existing API)
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext
+  ): Promise<Response> {
+    return app.fetch(request, env, ctx);
+  },
+
+  // Handle scheduled events (delegated to scheduler module)
+  async scheduled(event: any, env: Env, ctx: ExecutionContext): Promise<void> {
+    console.log(
+      `[MAIN] Cron job triggered: ${event.cron} at ${new Date().toISOString()}`
+    );
+
+    // Use waitUntil to ensure the task completes before worker shuts down
+    ctx.waitUntil(handleScheduledEvent(event, env, ctx));
+  },
+};

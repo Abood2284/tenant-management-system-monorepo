@@ -3,19 +3,15 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 
-import {
-  RentAllocationPieChart,
-  MonthlyTrendsAreaChart,
-  TransactionHistoryTable,
-  TenantDetailsCard,
-  TenantSummaryHeader,
-} from "./components";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { TenantSummaryHeader } from "./components/TenantSummaryHeader";
+import { MonthlyTrendsAreaChart } from "./components/MonthlyTrendsAreaChart";
+import { TransactionHistoryTable } from "./components/TransactionHistoryTable";
+import { RentAllocationPieChart } from "./components/RentAllocationPieChart";
+import { TenantDetailsCard } from "./components/TenantDetailsCard";
 
 // Types for tenant data
 interface TenantData {
@@ -74,6 +70,69 @@ interface ApiResponse<T> {
   transData?: T[];
 }
 
+interface TenantApiData {
+  tenant: {
+    TENANT_ID: string;
+    TENANT_NAME: string;
+    PROPERTY_ID: string;
+    PROPERTY_NAME: string;
+    BUILDING_FOOR: string;
+    PROPERTY_TYPE: string;
+    PROPERTY_NUMBER: string;
+    IS_ACTIVE: boolean;
+    TENANCY_DATE: string;
+    TENANCY_END_DATE: string;
+  };
+  property: {
+    PROPERTY_ID: string;
+    PROPERTY_NAME: string;
+    ADDRESS: string;
+  };
+  rentFactors: {
+    BASIC_RENT: number;
+    PROPERTY_TAX: number;
+    REPAIR_CESS: number;
+    MISC: number;
+    totalRent: number;
+  };
+  paymentHistory: Array<{
+    ID: string;
+    RENT_MONTH: string;
+    RECEIVED_AMOUNT: number;
+    RENT_ALLOCATED: number;
+    PENALTY_ALLOCATED: number;
+    OUTSTANDING_ALLOCATED: number;
+    PAYMENT_METHOD: number;
+    PAYMENT_DATE: string;
+    PAYMENT_TYPE: number;
+  }>;
+  unpaidMonths: Array<{
+    RENT_MONTH: string;
+    RENT_PENDING: number;
+    PENALTY_PENDING: number;
+    RENT_COLLECTED: number;
+    PENALTY_PAID: number;
+    OUTSTANDING_COLLECTED: number;
+    OUTSTANDING_PENDING: number;
+  }>;
+  currentMonth: {
+    RENT_MONTH: string;
+    RENT_COLLECTED: number;
+    PENALTY_PAID: number;
+    OUTSTANDING_COLLECTED: number;
+    RENT_PENDING: number;
+    PENALTY_PENDING: number;
+    OUTSTANDING_PENDING: number;
+  };
+  summary: {
+    totalCollected: number;
+    totalRentCollected: number;
+    totalPenaltyCollected: number;
+    totalOutstandingCollected: number;
+  };
+  totalDue: number;
+}
+
 // Real API function to fetch tenant data using enhanced API
 const fetchTenantData = async (tenantID: string): Promise<TenantData> => {
   const workerUrl =
@@ -87,18 +146,23 @@ const fetchTenantData = async (tenantID: string): Promise<TenantData> => {
     throw new Error(`Failed to fetch tenant details: ${tenantResponse.status}`);
   }
 
-  const tenantResult = (await tenantResponse.json()) as ApiResponse<any>;
+  const tenantResult =
+    (await tenantResponse.json()) as ApiResponse<TenantApiData>;
   if (tenantResult.status !== 200) {
     throw new Error(tenantResult.message || "Failed to fetch tenant details");
   }
 
   const data = tenantResult.data;
-  const tenant = data?.tenant;
-  const property = data?.property;
-  const rentFactors = data?.rentFactors;
-  const paymentHistory = data?.paymentHistory || [];
-  const unpaidMonths = data?.unpaidMonths || [];
-  const currentMonth = data?.currentMonth;
+  if (!data) {
+    throw new Error("No tenant data received");
+  }
+
+  const tenant = data.tenant;
+  const property = data.property;
+  const rentFactors = data.rentFactors;
+  const paymentHistory = data.paymentHistory || [];
+  const unpaidMonths = data.unpaidMonths || [];
+  const currentMonth = data.currentMonth;
   const summary = data?.summary;
 
   // Calculate totals using real data

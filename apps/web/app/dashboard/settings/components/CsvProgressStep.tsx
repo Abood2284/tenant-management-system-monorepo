@@ -43,6 +43,8 @@ export function CsvProgressStep({
   useEffect(() => {
     const uploadFile = async () => {
       try {
+        const workerUrl =
+          process.env.NEXT_PUBLIC_WORKER_URL || "http://localhost:8787";
         setStatus("uploading");
         setProgress(0);
         const progressInterval = setInterval(() => {
@@ -58,13 +60,10 @@ export function CsvProgressStep({
         formData.append("type", type);
         formData.append("file", file);
         setStatus("processing");
-        const response = await fetch(
-          "http://localhost:8787/api/settings/import-csv",
-          {
-            method: "POST",
-            body: formData,
-          }
-        );
+        const response = await fetch(`${workerUrl}/api/settings/import-csv`, {
+          method: "POST",
+          body: formData,
+        });
         clearInterval(progressInterval);
         setProgress(100);
         const data = await response.json();
@@ -84,7 +83,6 @@ export function CsvProgressStep({
       }
     };
     uploadFile();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type, file]);
 
   const getStatusIcon = () => {

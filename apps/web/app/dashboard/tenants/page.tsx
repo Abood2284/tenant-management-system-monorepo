@@ -1,8 +1,7 @@
 // apps/web/app/dashboard/tenants/page.tsx
 "use client";
 
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import Link from "next/link";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,9 +26,12 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Search, Edit, Trash2, Users, Filter } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Filter } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TablePagination } from "@/components/ui/pagination";
+import { AddTenantModal } from "./components/AddTenantModal";
+import { EditTenantModal } from "./components/EditTenantModal";
+import { TenantsSkeleton } from "@/components/shared/tenants-skeleton";
 
 // Types
 interface Tenant {
@@ -63,6 +65,8 @@ function TenantsPage() {
   const [currentTenants, setCurrentTenants] = useState(false);
   const [hasContact, setHasContact] = useState(false);
   const [expiringSoon, setExpiringSoon] = useState(false);
+  const [isAddTenantModalOpen, setIsAddTenantModalOpen] = useState(false);
+  const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const pageSize = 15;
 
   // Debounce search input
@@ -75,6 +79,8 @@ function TenantsPage() {
   const fetchTenants = useCallback(
     async (pageNum: number) => {
       try {
+        const workerUrl =
+          process.env.NEXT_PUBLIC_WORKER_URL || "http://localhost:8787";
         setLoading(true);
         const params = new URLSearchParams({
           page: pageNum.toString(),
@@ -87,9 +93,7 @@ function TenantsPage() {
         if (currentTenants) params.append("current", "true");
         if (hasContact) params.append("hasContact", "true");
         if (expiringSoon) params.append("expiringSoon", "true");
-        const res = await fetch(
-          `http://localhost:8787/api/tenant/list?${params}`
-        );
+        const res = await fetch(`${workerUrl}/api/tenant/list?${params}`);
         if (!res.ok) throw new Error("Failed to fetch tenants");
         const { data, total: totalCount } = (await res.json()) as {
           data: Tenant[];
@@ -119,7 +123,9 @@ function TenantsPage() {
     const fetchInitialData = async () => {
       setLoading(true);
       try {
-        const propRes = await fetch("http://localhost:8787/api/property/list");
+        const workerUrl =
+          process.env.NEXT_PUBLIC_WORKER_URL || "http://localhost:8787";
+        const propRes = await fetch(`${workerUrl}/api/property/list`);
         if (!propRes.ok) throw new Error("Failed to fetch properties");
         const propJson = (await propRes.json()) as { data: Property[] };
         const propMap = (propJson.data || []).reduce(
@@ -166,7 +172,7 @@ function TenantsPage() {
     expiringSoon,
   ]);
 
-  if (loading && page === 1) return <div>Loading tenants...</div>;
+  if (loading && tenants.length === 0) return <TenantsSkeleton />;
   if (error) return <div className="text-red-500">Error: {error}</div>;
 
   return (
@@ -179,13 +185,11 @@ function TenantsPage() {
           </p>
         </div>
         <Button
-          asChild
+          onClick={() => setIsAddTenantModalOpen(true)}
           className="bg-prussian-blue-500 hover:bg-prussian-blue-600 text-papaya-whip-500"
         >
-          <Link href="/dashboard/tenants/new">
-            <Plus className="h-4 w-4 mr-2" />
-            Add New Tenant
-          </Link>
+          <Plus className="h-4 w-4 mr-2" />
+          Add New Tenant
         </Button>
       </div>
 
@@ -330,7 +334,9 @@ function TenantsPage() {
       </div>
 
       {/* Tenants Table */}
-      <Card className="flex flex-col h-[600px]">
+      <Card
+        className={`flex flex-col h-[600px] transition-opacity ${loading ? "opacity-50" : "opacity-100"}`}
+      >
         <CardContent className="flex-1 overflow-y-auto p-0 px-6">
           {" "}
           {/* Added px-6 for horizontal padding */}
@@ -379,15 +385,12 @@ function TenantsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon">
-                      <Edit className="h-4 w-4" />
-                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="text-red-500"
+                      onClick={() => setEditingTenant(tenant)}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Edit className="h-4 w-4" />
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -405,6 +408,27 @@ function TenantsPage() {
           />
         </div>
       </Card>
+
+      {/* Add Tenant Modal */}
+      <AddTenantModal
+        isOpen={isAddTenantModalOpen}
+        onClose={() => setIsAddTenantModalOpen(false)}
+        onSuccess={() => {
+          setIsAddTenantModalOpen(false);
+          // Refresh the data
+          fetchTenants(page);
+        }}
+      />
+      {/* Edit Tenant Modal */}
+      <EditTenantModal
+        isOpen={!!editingTenant}
+        tenant={editingTenant}
+        onClose={() => setEditingTenant(null)}
+        onSuccess={() => {
+          setEditingTenant(null);
+          fetchTenants(page);
+        }}
+      />
     </div>
   );
 }

@@ -8,8 +8,6 @@ import { Input } from "@/components/ui/input";
 import {
   Plus,
   Search,
-  Edit,
-  Trash2,
   CreditCard,
   Banknote,
   Smartphone,
@@ -26,6 +24,7 @@ import {
   Clock,
   TrendingUp,
   BarChart3,
+  Printer,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -49,10 +48,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { format, addDays } from "date-fns";
+import { format } from "date-fns";
 import Link from "next/link";
 import { AddPaymentModal } from "@/app/dashboard/transactions/[tenantID]/components/payment/AddPaymentModal";
 import { DeleteTransactionButton } from "./components/DeleteTransactionButton";
+import { TransactionsSkeleton } from "@/components/shared/transactions-skeleton";
+import { DownloadReceiptButton } from "./components/DownloadReceiptButton";
 
 // Types for API responses
 interface Transaction {
@@ -82,6 +83,10 @@ interface Transaction {
   RENT_PENDING?: number; // Real pending rent from database
   PENALTY_PENDING?: number; // Real pending penalty from database
   OUTSTANDING_PENDING?: number; // Real pending outstanding from database
+  BASIC_RENT?: number;
+  PROPERTY_TAX?: number;
+  REPAIR_CESS?: number;
+  MISC?: number;
 }
 
 interface UnpaidBalance {
@@ -386,7 +391,7 @@ function TransactionsPage() {
     setIsDatePickerOpen(false);
   };
 
-  if (loading) return <div>Loading transactions...</div>;
+  if (loading) return <TransactionsSkeleton />;
   if (error) return <div className="text-red-500">Error: {error}</div>;
 
   return (
@@ -854,33 +859,51 @@ function TransactionsPage() {
                                 </div>
                               </div>
 
-                              {/* Tenant & Property Info */}
+                              {/* Rent Breakdown */}
                               <div className="space-y-3">
                                 <h4 className="font-semibold text-sm text-prussian-blue-600 flex items-center gap-2">
-                                  <User className="h-4 w-4" />
-                                  Tenant & Property
+                                  <CreditCard className="h-4 w-4" />
+                                  Rent Breakdown
                                 </h4>
                                 <div className="space-y-2 text-sm">
                                   <div className="flex justify-between">
                                     <span className="text-muted-foreground">
-                                      Tenant ID:
+                                      Base Rent:
                                     </span>
-                                    <span className="font-mono">
-                                      {tx.TENANT_ID}
+                                    <span className="font-medium">
+                                      ₹{(tx.BASIC_RENT || 0).toLocaleString()}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-muted-foreground">
-                                      Property:
+                                      Property Tax:
                                     </span>
-                                    <span>{tx.PROPERTY_NAME}</span>
+                                    <span className="font-medium">
+                                      ₹{(tx.PROPERTY_TAX || 0).toLocaleString()}
+                                    </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-muted-foreground">
-                                      Property ID:
+                                      Repair Cess:
                                     </span>
-                                    <span className="font-mono">
-                                      {tx.PROPERTY_ID}
+                                    <span className="font-medium">
+                                      ₹{(tx.REPAIR_CESS || 0).toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">
+                                      Misc:
+                                    </span>
+                                    <span className="font-medium">
+                                      ₹{(tx.MISC || 0).toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between font-semibold border-t pt-2 mt-2">
+                                    <span className="text-muted-foreground">
+                                      Total Rent:
+                                    </span>
+                                    <span className="font-bold text-lg">
+                                      ₹{(tx.TOTAL_RENT || 0).toLocaleString()}
                                     </span>
                                   </div>
                                 </div>
@@ -908,6 +931,9 @@ function TransactionsPage() {
                                   </Button>
                                 </div>
                                 <div className="flex gap-2">
+                                  <DownloadReceiptButton
+                                    transactionId={tx.ID}
+                                  />
                                   <DeleteTransactionButton
                                     transactionId={tx.ID}
                                     tenantName={tx.TENANT_NAME}

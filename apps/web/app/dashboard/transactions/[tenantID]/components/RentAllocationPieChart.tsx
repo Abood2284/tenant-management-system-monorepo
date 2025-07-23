@@ -1,3 +1,4 @@
+// apps/web/app/dashboard/transactions/[tenantID]/components/RentAllocationPieChart.tsx
 "use client";
 
 import { PieChart, Pie, Cell } from "recharts";
@@ -13,8 +14,9 @@ import {
 import {
   ChartConfig,
   ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
   ChartTooltip,
-  ChartTooltipContent,
 } from "@/components/ui/chart";
 
 interface RentAllocationData {

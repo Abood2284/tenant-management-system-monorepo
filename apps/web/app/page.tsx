@@ -2,126 +2,148 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShineBorder } from "@/components/magicui/shine-border";
+import { AlertCircle, Loader2 } from "lucide-react";
+
 import { Particles } from "@/components/magicui/particles";
-
-interface LoginSuccessResponse {
-  status: number;
-  data: {
-    sessionToken: string;
-    user: Record<string, unknown>;
-  };
-}
-
-interface LoginErrorResponse {
-  message: string;
-}
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
+
     setError(null);
+    setIsLoading(true);
 
     try {
-      const response = await fetch("http://localhost:8787/api/auth/login", {
+      const workerUrl =
+        process.env.NEXT_PUBLIC_WORKER_URL || "http://localhost:8787";
+      const response = await fetch(`${workerUrl}/api/auth/login`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
+      const responseData = (await response.json()) as {
+        message: string;
+        data: {
+          session: string;
+        };
+      };
+
       if (!response.ok) {
-        const errorData: LoginErrorResponse = await response.json();
-        throw new Error(errorData.message || "Login failed");
+        throw new Error(responseData.message || "Login failed");
       }
 
-      const json: LoginSuccessResponse = await response.json();
-      const sessionData = json.data;
-      localStorage.setItem("session", JSON.stringify(sessionData));
+      // Assuming the response data contains a session object
+      localStorage.setItem("session", JSON.stringify(responseData.data));
       router.push("/dashboard");
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "An unknown error occurred"
-      );
+      const errorMessage =
+        err instanceof Error ? err.message : "An unknown error occurred";
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <main className="flex items-center justify-center min-h-screen ">
-      <div className="w-full max-w-md p-8 space-y-8 bg-papaya-whip-200 rounded-2xl shadow-lg border border-prussian-blue-100">
-        <Particles
-          className="absolute inset-0 z-0"
-          quantity={100}
-          ease={80}
-          color={"#003049"}
-          refresh
-        />
-        <div className="space-y-2">
-          <ShineBorder />
-          <h1 className="text-3xl font-bold text-center text-prussian-blue-500">
-            Login
-          </h1>
-          <p className="text-center text-lg text-prussian-blue-400">
-            Sign in to your admin dashboard
-          </p>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-1">
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-prussian-blue-500"
+    <main className="relative flex items-center justify-center min-h-screen bg-papaya-whip-500 overflow-hidden">
+      <Particles
+        className="absolute inset-0 z-0"
+        quantity={150}
+        ease={80}
+        color={"#003049"}
+        refresh
+      />
+      <Card className="w-full max-w-md z-10 bg-papaya-whip-500/80 backdrop-blur-sm border-prussian-blue-500/20 shadow-xl">
+        <CardHeader className="text-center">
+          <CardTitle className="text-3xl font-bold text-prussian-blue-500">
+            Admin Login
+          </CardTitle>
+          <CardDescription className="text-prussian-blue-400">
+            Please sign in to manage your properties
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-prussian-blue-500">
+                Email
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                required
+                autoComplete="email"
+                disabled={isLoading}
+                className={inputStyles}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-prussian-blue-500">
+                Password
+              </Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                autoComplete="current-password"
+                disabled={isLoading}
+                className={inputStyles}
+              />
+            </div>
+
+            {error && (
+              <Alert variant="destructive" className="bg-fire-brick-500/10">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle className="text-fire-brick-600">
+                  Login Failed
+                </AlertTitle>
+                <AlertDescription className="text-fire-brick-600">
+                  {error}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full font-semibold text-papaya-whip-500 bg-prussian-blue-500 hover:bg-prussian-blue-600"
+              disabled={isLoading}
+              aria-disabled={isLoading}
             >
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              className="w-full px-3 py-2 mt-1 border border-prussian-blue-200 rounded-md shadow-sm bg-papaya-whip-500 text-prussian-blue-500 placeholder:text-prussian-blue-400 focus:outline-none focus:ring-2 focus:ring-prussian-blue-500 focus:border-prussian-blue-500 transition"
-              placeholder="you@example.com"
-            />
-          </div>
-          <div className="space-y-1">
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-prussian-blue-500"
-            >
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-              className="w-full px-3 py-2 mt-1 border border-prussian-blue-200 rounded-md shadow-sm bg-papaya-whip-500 text-prussian-blue-500 placeholder:text-prussian-blue-400 focus:outline-none focus:ring-2 focus:ring-prussian-blue-500 focus:border-prussian-blue-500 transition"
-              placeholder="••••••••"
-            />
-          </div>
-          {error && (
-            <p className="text-sm text-center text-fire-brick-500 font-medium">
-              {error}
-            </p>
-          )}
-          <button
-            type="submit"
-            className="w-full py-2 px-4 font-semibold text-papaya-whip-500 bg-prussian-blue-500 rounded-md shadow-sm hover:bg-prussian-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-prussian-blue-500 transition"
-            aria-label="Login"
-          >
-            Login
-          </button>
-        </form>
-      </div>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isLoading ? "Signing In..." : "Sign In"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </main>
   );
 }
+
+// Static Content
+const inputStyles =
+  "bg-papaya-whip-500 text-prussian-blue-500 border-prussian-blue-200 placeholder:text-prussian-blue-400/70 focus-visible:ring-prussian-blue-500 disabled:opacity-50 disabled:cursor-not-allowed";

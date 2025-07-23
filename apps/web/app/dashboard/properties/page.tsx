@@ -62,8 +62,7 @@ const isPropertyArray = (data: unknown): data is Property[] =>
 const isTenantArray = (data: unknown): data is Tenant[] =>
   Array.isArray(data) &&
   data.every(
-    (item) =>
-      typeof item === "object" && item !== null && "TENANT_ID" in item
+    (item) => typeof item === "object" && item !== null && "TENANT_ID" in item
   );
 
 interface ApiResponse<T> {
@@ -82,9 +81,9 @@ function PropertiesPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const propResponse = await fetch(
-          "http://localhost:8787/api/property/list"
-        );
+        const workerUrl =
+          process.env.NEXT_PUBLIC_WORKER_URL || "http://localhost:8787";
+        const propResponse = await fetch(`${workerUrl}/api/property/list`);
         if (!propResponse.ok) throw new Error("Failed to fetch properties");
         const propResult: ApiResponse<unknown> = await propResponse.json();
 
@@ -95,7 +94,7 @@ function PropertiesPage() {
         setProperty(currentProperty);
 
         const tenantResponse = await fetch(
-          `http://localhost:8787/api/tenant/list?propertyId=${currentProperty.PROPERTY_ID}`
+          `${workerUrl}/api/tenant/list?propertyId=${currentProperty.PROPERTY_ID}`
         );
         if (!tenantResponse.ok) throw new Error("Failed to fetch tenants");
         const tenantResult: ApiResponse<unknown> = await tenantResponse.json();
@@ -120,7 +119,9 @@ function PropertiesPage() {
           floors.reduce((acc, floor) => ({ ...acc, [floor]: true }), {})
         );
       } catch (err) {
-        setError(err instanceof Error ? err.message : "An unknown error occurred");
+        setError(
+          err instanceof Error ? err.message : "An unknown error occurred"
+        );
       } finally {
         setLoading(false);
       }
@@ -129,10 +130,13 @@ function PropertiesPage() {
     fetchData();
   }, []);
 
-  const groupedUnits = unitDetails.reduce<Record<number, Unit[]>>((acc, unit) => {
-    (acc[unit.floor] = acc[unit.floor] || []).push(unit);
-    return acc;
-  }, {});
+  const groupedUnits = unitDetails.reduce<Record<number, Unit[]>>(
+    (acc, unit) => {
+      (acc[unit.floor] = acc[unit.floor] || []).push(unit);
+      return acc;
+    },
+    {}
+  );
 
   if (loading) return <div>Loading...</div>;
   if (error) return <div className="text-red-500">Error: {error}</div>;

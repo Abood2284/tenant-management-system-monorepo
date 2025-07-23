@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,9 @@ interface CsvPreviewStepProps {
   onBack: () => void;
 }
 
-const hasRun = useRef(false);
+interface CsvRow {
+  [key: string]: string | number | boolean | null;
+}
 
 export function CsvPreviewStep({
   type,
@@ -23,26 +25,34 @@ export function CsvPreviewStep({
   onBack,
 }: CsvPreviewStepProps) {
   const [isLoading, setIsLoading] = useState(true);
-  const [csvData, setCsvData] = useState<any[]>([]);
+  const [csvData, setCsvData] = useState<CsvRow[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
+  const hasRun = useRef(false);
 
-  useMemo(async () => {
-    if (hasRun.current) return;
-    try {
-      const text = await file.text();
-      const parsed = parse(text, { columns: true, skip_empty_lines: true });
-      setCsvData(parsed);
-      hasRun.current = true;
-      setIsLoading(false);
-      setErrors([]);
-    } catch (err) {
-      setCsvData([]);
-      hasRun.current = false;
-      setIsLoading(false);
-      setErrors([
-        `Failed to parse CSV file: ${err instanceof Error ? err.message : String(err)}`,
-      ]);
-    }
+  useEffect(() => {
+    const processFile = async () => {
+      if (hasRun.current) return;
+      try {
+        const text = await file.text();
+        const parsed = parse(text, {
+          columns: true,
+          skip_empty_lines: true,
+        }) as CsvRow[];
+        setCsvData(parsed);
+        hasRun.current = true;
+        setIsLoading(false);
+        setErrors([]);
+      } catch (err) {
+        setCsvData([]);
+        hasRun.current = false;
+        setIsLoading(false);
+        setErrors([
+          `Failed to parse CSV file: ${err instanceof Error ? err.message : String(err)}`,
+        ]);
+      }
+    };
+
+    processFile();
   }, [file, type]);
 
   const previewRows = csvData.slice(0, 5);
@@ -178,14 +188,19 @@ export function CsvPreviewStep({
                 <tbody>
                   {previewRows.map((row, index) => (
                     <tr key={index} className="border-b">
-                      {Object.values(row).map((value: any, cellIndex) => (
-                        <td
-                          key={cellIndex}
-                          className="p-2 text-muted-foreground"
-                        >
-                          {String(value)}
-                        </td>
-                      ))}
+                      {Object.values(row).map(
+                        (
+                          value: string | number | boolean | null,
+                          cellIndex
+                        ) => (
+                          <td
+                            key={cellIndex}
+                            className="p-2 text-muted-foreground"
+                          >
+                            {String(value)}
+                          </td>
+                        )
+                      )}
                     </tr>
                   ))}
                 </tbody>

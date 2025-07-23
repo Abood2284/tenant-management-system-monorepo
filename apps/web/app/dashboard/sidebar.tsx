@@ -79,7 +79,7 @@ const menuItems = [
   },
 ];
 
-function getNavClassName(path: string, currentPath: string, expanded: boolean) {
+function getNavClassName(path: string, currentPath: string) {
   const baseClasses =
     "w-full justify-start text-left transition-colors px-2 py-2 rounded-md";
   if (path === currentPath) {
@@ -117,7 +117,7 @@ function SidebarContent() {
           <SidebarLink
             key={item.title}
             link={{ label: item.title, href: item.url, icon: item.icon }}
-            className={getNavClassName(item.url, currentPath, open)}
+            className={getNavClassName(item.url, currentPath)}
           />
         ))}
       </nav>

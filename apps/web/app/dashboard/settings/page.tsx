@@ -1,3 +1,4 @@
+// apps/web/app/dashboard/settings/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -5,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -13,19 +13,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
-  Save,
-  User,
-  Shield,
   Bell,
-  Percent,
-  Palette,
   Database,
   Key,
+  Palette,
+  Percent,
+  Save,
+  Shield,
+  TrendingUp,
   Upload,
+  User,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { ImportCsvWizard } from "./components/ImportCsvWizard";
+import { EnhancedBillingSettings } from "./components/EnhancedBillingSettings";
+import { RentFactorUpdateSettings } from "./components/RentFactorUpdateSettings";
 
 type SettingsTab =
   | "profile"
@@ -34,7 +38,8 @@ type SettingsTab =
   | "notifications"
   | "appearance"
   | "data"
-  | "import-csv";
+  | "import-csv"
+  | "rent-factors";
 
 function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
@@ -67,7 +72,7 @@ function SettingsPage() {
         return <SecuritySettings />;
       case "billing":
         return (
-          <BillingSettings
+          <EnhancedBillingSettings
             systemSettings={systemSettings}
             setSystemSettings={setSystemSettings}
           />
@@ -85,6 +90,8 @@ function SettingsPage() {
         return <DataSettings />;
       case "import-csv":
         return <ImportCsvWizard />;
+      case "rent-factors":
+        return <RentFactorUpdateSettings />;
       default:
         return (
           <ProfileSettings
@@ -107,7 +114,7 @@ function SettingsPage() {
             Manage your profile and system preferences
           </p>
         </div>
-        {activeTab !== "import-csv" && (
+        {activeTab !== "import-csv" && activeTab !== "billing" && (
           <Button className="bg-prussian_blue-500 hover:bg-prussian_blue-600">
             <Save className="h-4 w-4 mr-2" />
             Save Changes
@@ -181,6 +188,14 @@ function SettingsPage() {
                 <Upload className="h-4 w-4 mr-3" />
                 Import CSV
               </Button>
+              <Button
+                variant={activeTab === "rent-factors" ? "default" : "ghost"}
+                className="w-full justify-start text-left"
+                onClick={() => setActiveTab("rent-factors")}
+              >
+                <TrendingUp className="h-4 w-4 mr-3" />
+                Rent Factor Update
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -197,12 +212,28 @@ function SettingsPage() {
 }
 
 // Profile Settings Component
+interface ProfileData {
+  name: string;
+  email: string;
+  phone: string;
+  company: string;
+}
+
+interface SystemSettings {
+  defaultPenaltyPercent: number;
+  gracePeriodDays: number;
+  autoReminders: boolean;
+  whatsappIntegration: boolean;
+  emailNotifications: boolean;
+  currency: string;
+}
+
 function ProfileSettings({
   profileData,
   setProfileData,
 }: {
-  profileData: any;
-  setProfileData: (data: any) => void;
+  profileData: ProfileData;
+  setProfileData: React.Dispatch<React.SetStateAction<ProfileData>>;
 }) {
   return (
     <Card>
@@ -222,7 +253,7 @@ function ProfileSettings({
               id="name"
               value={profileData.name}
               onChange={(e) =>
-                setProfileData((prev: any) => ({
+                setProfileData((prev: ProfileData) => ({
                   ...prev,
                   name: e.target.value,
                 }))
@@ -239,7 +270,7 @@ function ProfileSettings({
               type="email"
               value={profileData.email}
               onChange={(e) =>
-                setProfileData((prev: any) => ({
+                setProfileData((prev: ProfileData) => ({
                   ...prev,
                   email: e.target.value,
                 }))
@@ -255,7 +286,7 @@ function ProfileSettings({
               id="phone"
               value={profileData.phone}
               onChange={(e) =>
-                setProfileData((prev: any) => ({
+                setProfileData((prev: ProfileData) => ({
                   ...prev,
                   phone: e.target.value,
                 }))
@@ -271,7 +302,7 @@ function ProfileSettings({
               id="company"
               value={profileData.company}
               onChange={(e) =>
-                setProfileData((prev: any) => ({
+                setProfileData((prev: ProfileData) => ({
                   ...prev,
                   company: e.target.value,
                 }))
@@ -333,8 +364,8 @@ function BillingSettings({
   systemSettings,
   setSystemSettings,
 }: {
-  systemSettings: any;
-  setSystemSettings: (data: any) => void;
+  systemSettings: SystemSettings;
+  setSystemSettings: React.Dispatch<React.SetStateAction<SystemSettings>>;
 }) {
   return (
     <Card>
@@ -355,7 +386,7 @@ function BillingSettings({
               type="number"
               value={systemSettings.defaultPenaltyPercent}
               onChange={(e) =>
-                setSystemSettings((prev: any) => ({
+                setSystemSettings((prev: SystemSettings) => ({
                   ...prev,
                   defaultPenaltyPercent: parseInt(e.target.value),
                 }))
@@ -372,7 +403,7 @@ function BillingSettings({
               type="number"
               value={systemSettings.gracePeriodDays}
               onChange={(e) =>
-                setSystemSettings((prev: any) => ({
+                setSystemSettings((prev: SystemSettings) => ({
                   ...prev,
                   gracePeriodDays: parseInt(e.target.value),
                 }))
@@ -389,7 +420,10 @@ function BillingSettings({
           <Select
             value={systemSettings.currency}
             onValueChange={(value) =>
-              setSystemSettings((prev: any) => ({ ...prev, currency: value }))
+              setSystemSettings((prev: SystemSettings) => ({
+                ...prev,
+                currency: value,
+              }))
             }
           >
             <SelectTrigger className="mt-1">
@@ -413,8 +447,8 @@ function NotificationSettings({
   systemSettings,
   setSystemSettings,
 }: {
-  systemSettings: any;
-  setSystemSettings: (data: any) => void;
+  systemSettings: SystemSettings;
+  setSystemSettings: React.Dispatch<React.SetStateAction<SystemSettings>>;
 }) {
   return (
     <Card>
@@ -437,7 +471,7 @@ function NotificationSettings({
           <Switch
             checked={systemSettings.whatsappIntegration}
             onCheckedChange={(checked) =>
-              setSystemSettings((prev: any) => ({
+              setSystemSettings((prev: SystemSettings) => ({
                 ...prev,
                 whatsappIntegration: checked,
               }))
@@ -457,7 +491,7 @@ function NotificationSettings({
           <Switch
             checked={systemSettings.autoReminders}
             onCheckedChange={(checked) =>
-              setSystemSettings((prev: any) => ({
+              setSystemSettings((prev: SystemSettings) => ({
                 ...prev,
                 autoReminders: checked,
               }))
@@ -479,7 +513,7 @@ function NotificationSettings({
           <Switch
             checked={systemSettings.emailNotifications}
             onCheckedChange={(checked) =>
-              setSystemSettings((prev: any) => ({
+              setSystemSettings((prev: SystemSettings) => ({
                 ...prev,
                 emailNotifications: checked,
               }))

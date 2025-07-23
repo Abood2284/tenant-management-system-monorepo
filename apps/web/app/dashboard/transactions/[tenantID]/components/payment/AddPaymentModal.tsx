@@ -1,3 +1,4 @@
+// apps/web/app/dashboard/transactions/[tenantID]/components/payment/AddPaymentModal.tsx
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -32,8 +33,14 @@ import type {
   TenantPaymentData,
   PaymentEntry,
   PaymentMethod,
-  ActionResponse,
 } from "@/lib/types";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { toLocalISOString } from "@/lib/utils";
 
 interface AddPaymentModalProps {
   isOpen: boolean;
@@ -42,6 +49,8 @@ interface AddPaymentModalProps {
 }
 
 type Step = "tenant" | "payment" | "allocation" | "review";
+
+const WAIVER_NOTE_PREFIX = "Penalty for this Tenant Waived off by";
 
 export function AddPaymentModal({
   isOpen,
@@ -80,6 +89,10 @@ export function AddPaymentModal({
   const [selectedRentMonth, setSelectedRentMonth] = useState<string>("");
   const [selectedPenaltyMonth, setSelectedPenaltyMonth] = useState<string>("");
   const [outstandingAllocated, setOutstandingAllocated] = useState("");
+  const [isPenaltyManuallyWaived, setIsPenaltyManuallyWaived] = useState(false);
+
+  // Add state for penaltyAllocatedInput
+  const [penaltyAllocatedInput, setPenaltyAllocatedInput] = useState("");
 
   // Debounced search effect
   useEffect(() => {
@@ -99,6 +112,34 @@ export function AddPaymentModal({
     }
   }, [selectedTenant]);
 
+  // === NEW EFFECT for handling penalty waiver note ===
+  useEffect(() => {
+    // This effect runs when the user checks/unchecks the manual waiver box
+    const waiverNote = `NOTE: Penalty was waived off by admin123`;
+    if (isPenaltyManuallyWaived) {
+      if (notes.includes(waiverNote)) return;
+      setNotes(notes ? `${notes}\n${waiverNote}` : waiverNote);
+    } else {
+      // Remove only the waiver note, leave user's note intact
+      if (notes.includes(waiverNote)) {
+        setNotes(
+          notes.replace(`\n${waiverNote}`, "").replace(waiverNote, "").trim()
+        );
+      }
+    }
+  }, [isPenaltyManuallyWaived]);
+
+  // Log allMonths when allocation step is active and data is available
+  useEffect(() => {
+    if (
+      currentStep === "allocation" &&
+      tenantPaymentData &&
+      tenantPaymentData.allMonths
+    ) {
+      console.log("DEBUG allMonths:", tenantPaymentData.allMonths);
+    }
+  }, [currentStep, tenantPaymentData?.allMonths]);
+
   const loadTenants = async () => {
     try {
       setSearchLoading(true);
@@ -107,7 +148,9 @@ export function AddPaymentModal({
       const workerUrl =
         process.env.NEXT_PUBLIC_WORKER_URL || "http://localhost:8787";
       const response = await fetch(
-        `${workerUrl}/api/tenant/list?search=${tenantSearch}&status=active&limit=50`
+        `${workerUrl}/api/tenant/list?search=${encodeURIComponent(
+          tenantSearch
+        )}`
       );
 
       if (!response.ok) {
@@ -116,7 +159,7 @@ export function AddPaymentModal({
 
       const workerResult = (await response.json()) as {
         status: number;
-        data: any[];
+        data: Tenant[];
         message?: string;
       };
 
@@ -124,21 +167,9 @@ export function AddPaymentModal({
         throw new Error(workerResult.message || "Failed to fetch tenants");
       }
 
-      // Transform the worker response to match our expected format
-      const tenantData = (workerResult.data || []).map((tenant: any) => ({
-        TENANT_ID: tenant.TENANT_ID,
-        TENANT_NAME: tenant.TENANT_NAME,
-        PROPERTY_ID: tenant.PROPERTY_ID,
-        PROPERTY_NAME: tenant.PROPERTY_NAME,
-        BUILDING_FOOR: tenant.BUILDING_FOOR,
-        PROPERTY_TYPE: tenant.PROPERTY_TYPE,
-        PROPERTY_NUMBER: tenant.PROPERTY_NUMBER,
-        IS_ACTIVE: tenant.IS_ACTIVE,
-      }));
-
-      setTenants(tenantData);
-    } catch (error) {
-      setError("Failed to load tenants");
+      setTenants(workerResult.data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch tenants");
     } finally {
       setSearchLoading(false);
     }
@@ -147,6 +178,8 @@ export function AddPaymentModal({
   const loadTenantPaymentData = async (tenantId: string) => {
     try {
       setLoading(true);
+      setError(null);
+
       const workerUrl =
         process.env.NEXT_PUBLIC_WORKER_URL || "http://localhost:8787";
       const response = await fetch(
@@ -159,31 +192,126 @@ export function AddPaymentModal({
 
       const workerResult = (await response.json()) as {
         status: number;
-        data: any;
+        data: TenantPaymentData;
         message?: string;
       };
 
       if (workerResult.status !== 200) {
-        throw new Error(
-          workerResult.message || "Failed to fetch tenant payment data"
-        );
+        throw new Error(workerResult.message || "Failed to fetch tenant data");
       }
 
-      // Transform the worker response to match our expected format
-      const paymentData = {
-        tenant: workerResult.data.tenant,
-        unpaidMonths: workerResult.data.unpaidMonths,
-        totalDue: workerResult.data.totalDue,
-        rentFactors: workerResult.data.rentFactors,
-      };
-
-      setTenantPaymentData(paymentData);
-    } catch (error) {
-      setError("Failed to load tenant payment data");
+      setTenantPaymentData(workerResult.data);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to fetch tenant data"
+      );
     } finally {
       setLoading(false);
     }
   };
+
+  // === REFACTORED ALLOCATION VALUES - Calculated dynamically ===
+  const receivedAmountNum = parseInt(receivedAmount) || 0;
+
+  const selectedMonthData =
+    selectedRentMonth && tenantPaymentData?.allMonths
+      ? tenantPaymentData.allMonths.find(
+          (m) => m.RENT_MONTH === selectedRentMonth
+        )
+      : null;
+
+  const rentAllocated = selectedMonthData?.RENT_PENDING || 0;
+
+  const isPenaltyApplicable =
+    selectedMonthData &&
+    selectedMonthData.PENALTY_PENDING > 0 &&
+    isPenaltyShouldApply(selectedMonthData, paymentDate);
+
+  const penaltyDue =
+    isPenaltyApplicable && !isPenaltyManuallyWaived
+      ? selectedMonthData.PENALTY_PENDING || 0
+      : 0;
+
+  const unallocatedAfterRent = Math.max(0, receivedAmountNum - rentAllocated);
+
+  const getUnallocatedAmount = () => {
+    let rentAllocated = 0;
+    let penaltyAllocated = 0;
+    if (tenantPaymentData) {
+      if (selectedRentMonth && selectedRentMonth !== "none") {
+        rentAllocated = tenantPaymentData.allMonths
+          ? tenantPaymentData.allMonths.find(
+              (m) => m.RENT_MONTH === selectedRentMonth
+            )?.RENT_PENDING || 0
+          : tenantPaymentData.unpaidMonths.find(
+              (m) => m.RENT_MONTH === selectedRentMonth
+            )?.RENT_PENDING || 0;
+      }
+      if (selectedPenaltyMonth && selectedPenaltyMonth !== "none") {
+        penaltyAllocated = tenantPaymentData.allMonths
+          ? tenantPaymentData.allMonths.find(
+              (m) => m.RENT_MONTH === selectedPenaltyMonth
+            )?.PENALTY_PENDING || 0
+          : tenantPaymentData.unpaidMonths.find(
+              (m) => m.RENT_MONTH === selectedPenaltyMonth
+            )?.PENALTY_PENDING || 0;
+      }
+    }
+    const outstanding = parseInt(outstandingAllocated) || 0;
+    return (
+      parseInt(receivedAmount) -
+      (rentAllocated + penaltyAllocated + outstanding)
+    );
+  };
+
+  // Calculate penalty allocation for the selected month
+  const penaltyMax = (() => {
+    if (
+      !selectedRentMonth ||
+      selectedRentMonth === "none" ||
+      !tenantPaymentData
+    )
+      return 0;
+    const month = getSelectedMonth(selectedRentMonth);
+    if (!month) return 0;
+    return month.PENALTY_PENDING || 0;
+  })();
+
+  const penaltyApplies = (() => {
+    if (
+      !selectedRentMonth ||
+      selectedRentMonth === "none" ||
+      !tenantPaymentData
+    )
+      return false;
+    const month = getSelectedMonth(selectedRentMonth);
+    if (!month) return false;
+    return isPenaltyShouldApply(month, paymentDate);
+  })();
+
+  // Compute the max penalty that can be allocated from unallocated amount
+  const penaltyAutoAllocate = (() => {
+    if (!penaltyApplies || isPenaltyManuallyWaived) return 0;
+    const maxAlloc = Math.min(
+      getUnallocatedAmount() + (parseInt(penaltyAllocatedInput) || 0),
+      penaltyMax
+    );
+    return maxAlloc;
+  })();
+
+  const penaltyAllocated = Math.min(unallocatedAfterRent, penaltyDue);
+
+  const unallocatedAfterPenalty = Math.max(
+    0,
+    unallocatedAfterRent - penaltyAllocated
+  );
+
+  const outstandingAllocatedNum = parseInt(outstandingAllocated) || 0;
+
+  const totalAllocated =
+    rentAllocated + penaltyAllocated + outstandingAllocatedNum;
+
+  const finalUnallocated = receivedAmountNum - totalAllocated;
 
   const handleNext = () => {
     if (currentStep === "tenant" && selectedTenant) {
@@ -221,63 +349,59 @@ export function AddPaymentModal({
     return true;
   };
 
+  // === REFACTORED VALIDATION - Much simpler now ===
   const validateAllocationStep = () => {
-    const totalAllocated =
-      (selectedRentMonth && selectedRentMonth !== "none"
-        ? tenantPaymentData?.unpaidMonths.find(
-            (m) => m.RENT_MONTH === selectedRentMonth
-          )?.RENT_PENDING || 0
-        : 0) +
-      (selectedPenaltyMonth && selectedPenaltyMonth !== "none"
-        ? tenantPaymentData?.unpaidMonths.find(
-            (m) => m.RENT_MONTH === selectedPenaltyMonth
-          )?.PENALTY_PENDING || 0
-        : 0) +
-      (parseInt(outstandingAllocated) || 0);
-
-    return totalAllocated <= parseInt(receivedAmount);
+    if (outstandingAllocatedNum > unallocatedAfterPenalty) return false;
+    return finalUnallocated >= 0;
   };
 
   const handleSubmit = async () => {
-    if (!selectedTenant || !tenantPaymentData) return;
+    if (!selectedTenant || !tenantPaymentData) {
+      setError("Missing tenant or payment data");
+      return;
+    }
 
     try {
       setLoading(true);
       setError(null);
 
+      // === NEW: Determine if a penalty was waived ===
+      const penaltyExisted =
+        selectedMonthData && selectedMonthData.PENALTY_PENDING > 0;
+      const wasPenaltyWaived = penaltyExisted && penaltyAllocated === 0;
+
       const paymentEntry: PaymentEntry = {
         TENANT_ID: selectedTenant.TENANT_ID,
-        RENT_MONTH:
-          selectedRentMonth && selectedRentMonth !== "none"
-            ? selectedRentMonth
-            : undefined,
+        RENT_MONTH: selectedRentMonth,
         RECEIVED_AMOUNT: parseInt(receivedAmount),
         RENT_ALLOCATED:
           selectedRentMonth && selectedRentMonth !== "none"
-            ? tenantPaymentData.unpaidMonths.find(
-                (m) => m.RENT_MONTH === selectedRentMonth
-              )?.RENT_PENDING || 0
+            ? (Array.isArray(tenantPaymentData.unpaidMonths)
+                ? tenantPaymentData.unpaidMonths.find(
+                    (m) => m.RENT_MONTH === selectedRentMonth
+                  )?.RENT_PENDING
+                : tenantPaymentData.allMonths?.find(
+                    (m) => m.RENT_MONTH === selectedRentMonth
+                  )?.RENT_PENDING) || 0
             : 0,
-        PENALTY_ALLOCATED:
-          selectedPenaltyMonth && selectedPenaltyMonth !== "none"
-            ? tenantPaymentData.unpaidMonths.find(
-                (m) => m.RENT_MONTH === selectedPenaltyMonth
-              )?.PENALTY_PENDING || 0
-            : 0,
+        PENALTY_ALLOCATED: getPenaltyAllocated(),
         OUTSTANDING_ALLOCATED: parseInt(outstandingAllocated) || 0,
         PAYMENT_METHOD: paymentMethod,
-        PAYMENT_DATE: format(paymentDate, "yyyy-MM-dd"),
-        CHEQUE_NUMBER: paymentMethod === 2 ? chequeNumber : undefined,
+        PAYMENT_DATE: toLocalISOString(paymentDate),
+        IS_PENALTY_WAIVED: wasPenaltyWaived || false,
         CHEQUE_DATE:
           paymentMethod === 2 && chequeDate
-            ? format(chequeDate, "yyyy-MM-dd")
-            : undefined,
-        BANK_NAME: paymentMethod === 2 ? bankName : undefined,
-        BANK_BRANCH: paymentMethod === 2 ? bankBranch : undefined,
-        TRANSACTION_ID: paymentMethod === 3 ? transactionId : undefined,
-        PAYMENT_GATEWAY: paymentMethod === 3 ? paymentGateway : undefined,
+            ? toLocalISOString(chequeDate)
+            : null,
+        CHEQUE_NUMBER: paymentMethod === 2 ? chequeNumber : null,
+        BANK_NAME: paymentMethod === 2 ? bankName : null,
+        BANK_BRANCH: paymentMethod === 2 ? bankBranch : null,
+        TRANSACTION_ID: paymentMethod === 3 ? transactionId : null,
+        PAYMENT_GATEWAY: paymentMethod === 3 ? paymentGateway : null,
         NOTES: notes,
       };
+
+      console.log("About to call API with:", paymentEntry);
 
       const workerUrl =
         process.env.NEXT_PUBLIC_WORKER_URL || "http://localhost:8787";
@@ -295,7 +419,7 @@ export function AddPaymentModal({
 
       const workerResult = (await response.json()) as {
         status: number;
-        data: any;
+        data: { success: boolean; message?: string };
         message?: string;
       };
 
@@ -307,6 +431,7 @@ export function AddPaymentModal({
       onClose();
       resetForm();
     } catch (error) {
+      console.error("handleSubmit error:", error);
       setError("Failed to add payment");
     } finally {
       setLoading(false);
@@ -353,32 +478,70 @@ export function AddPaymentModal({
 
   const getMinimumRentAmount = () => {
     if (!tenantPaymentData) return 0;
-    const minRent = Math.min(
-      ...tenantPaymentData.unpaidMonths
+    // Use allMonths if present, else fallback to unpaidMonths
+    let rentPendings: number[] = [];
+    if (tenantPaymentData.allMonths) {
+      rentPendings = tenantPaymentData.allMonths
+        .filter(
+          (m) =>
+            m.RENT_PENDING > 0 &&
+            (typeof m.isPaid === "boolean" ? !m.isPaid : true)
+        )
+        .map((m) => m.RENT_PENDING);
+    } else {
+      rentPendings = tenantPaymentData.unpaidMonths
         .filter((m) => m.RENT_PENDING > 0)
-        .map((m) => m.RENT_PENDING)
-    );
+        .map((m) => m.RENT_PENDING);
+    }
+    if (rentPendings.length === 0) return 0;
+    const minRent = Math.min(...rentPendings);
     return minRent || 0;
   };
 
-  const getUnallocatedAmount = () => {
-    const totalAllocated =
-      (selectedRentMonth && selectedRentMonth !== "none"
-        ? tenantPaymentData?.unpaidMonths.find(
-            (m) => m.RENT_MONTH === selectedRentMonth
-          )?.RENT_PENDING || 0
-        : 0) +
-      (selectedPenaltyMonth && selectedPenaltyMonth !== "none"
-        ? tenantPaymentData?.unpaidMonths.find(
-            (m) => m.RENT_MONTH === selectedPenaltyMonth
-          )?.PENALTY_PENDING || 0
-        : 0) +
-      (parseInt(outstandingAllocated) || 0);
+  // Helper to filter Q1 months of FY 2025-2026
+  function isQ1FY2025_2026(monthStr: string) {
+    // Q1 FY 2025-2026: April, May, June 2025
+    const q1Months = ["2025-04", "2025-05", "2025-06"];
+    return q1Months.some((m) => monthStr.startsWith(m));
+  }
 
-    return parseInt(receivedAmount) - totalAllocated;
-  };
+  // Helper to get selected month object from allMonths
+  function getSelectedMonth(monthId: string) {
+    return tenantPaymentData?.allMonths?.find((m) => m.RENT_MONTH === monthId);
+  }
+
+  // Helper to recalculate penaltyShouldApply based on selected paymentDate
+  function isPenaltyShouldApply(month: any, paymentDate: Date) {
+    if (!month.penaltyTriggerDate) return false;
+    return paymentDate >= new Date(month.penaltyTriggerDate);
+  }
+
+  // Helper to get the actual penalty allocated for summary and calculations
+  function getPenaltyAllocated() {
+    if (isPenaltyManuallyWaived) return 0;
+    if (penaltyApplies) {
+      return penaltyAllocatedInput !== ""
+        ? parseInt(penaltyAllocatedInput) || 0
+        : penaltyAutoAllocate;
+    }
+    if (selectedPenaltyMonth && selectedPenaltyMonth !== "none") {
+      const month = tenantPaymentData?.allMonths
+        ? tenantPaymentData.allMonths.find(
+            (m) => m.RENT_MONTH === selectedPenaltyMonth
+          )
+        : tenantPaymentData?.unpaidMonths.find(
+            (m) => m.RENT_MONTH === selectedPenaltyMonth
+          );
+      return month?.PENALTY_PENDING || 0;
+    }
+    return 0;
+  }
 
   if (!isOpen) return null;
+
+  // DEBUG: Log totalDue before rendering
+  if (tenantPaymentData)
+    console.log("DEBUG totalDue:", tenantPaymentData.totalDue);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -528,9 +691,25 @@ export function AddPaymentModal({
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label className="pb-2" htmlFor="payment-date">
-                      Payment Date
-                    </Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Label
+                            className="pb-2 cursor-help"
+                            htmlFor="payment-date"
+                          >
+                            Payment Date
+                          </Label>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          The payment date determines if a penalty is applied or
+                          waived. If the payment date is before the penalty
+                          trigger (e.g., before the next quarter starts), no
+                          penalty will be charged for that month. Enter the
+                          actual date the payment was received.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
@@ -741,122 +920,297 @@ export function AddPaymentModal({
                 </div>
 
                 {/* Rent Allocation */}
-                {tenantPaymentData.unpaidMonths.some(
-                  (m) => m.RENT_PENDING > 0
-                ) && (
-                  <div>
-                    <Label className="pb-2">
-                      Select Unpaid Rent Month (Full Payment Required)
-                    </Label>
-                    <Select
-                      value={selectedRentMonth}
-                      onValueChange={setSelectedRentMonth}
-                      disabled={getReceivedAmount() < getMinimumRentAmount()}
-                    >
-                      <SelectTrigger
-                        className={
-                          getReceivedAmount() < getMinimumRentAmount()
-                            ? "bg-gray-100 text-gray-500"
-                            : ""
-                        }
+                {tenantPaymentData.allMonths &&
+                  tenantPaymentData.allMonths.length > 0 && (
+                    <div>
+                      <Label className="pb-2">
+                        Select Rent Month (Full Payment Required)
+                      </Label>
+                      <Select
+                        value={selectedRentMonth}
+                        onValueChange={setSelectedRentMonth}
+                        disabled={getReceivedAmount() < getMinimumRentAmount()}
                       >
-                        <SelectValue placeholder="Select rent month" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">
-                          None (No rent allocation)
-                        </SelectItem>
-                        {tenantPaymentData.unpaidMonths
-                          .filter((m) => m.RENT_PENDING > 0)
-                          .map((month) => (
+                        <SelectTrigger
+                          className={
+                            getReceivedAmount() < getMinimumRentAmount()
+                              ? "bg-gray-100 text-gray-500"
+                              : ""
+                          }
+                        >
+                          <SelectValue placeholder="Select rent month" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-48 overflow-y-auto">
+                          <SelectItem value="none">
+                            None (No rent allocation)
+                          </SelectItem>
+                          {tenantPaymentData.allMonths.map((month) => (
                             <SelectItem
                               key={month.RENT_MONTH}
                               value={month.RENT_MONTH}
+                              disabled={month.isPaid}
+                              className={
+                                month.isPaid
+                                  ? "opacity-50 cursor-not-allowed"
+                                  : ""
+                              }
                             >
                               {format(new Date(month.RENT_MONTH), "MMMM yyyy")}{" "}
                               - ₹{month.RENT_PENDING.toLocaleString()}
+                              {month.isPaid && " (Paid)"}
                             </SelectItem>
                           ))}
-                      </SelectContent>
-                    </Select>
-                    {(getReceivedAmount() < getMinimumRentAmount() ||
-                      getReceivedAmount() === 0) && (
-                      <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
-                        ⚠️ Insufficient payment for rent. Rent requires full
-                        payment - no partial payments allowed.
-                        <br />
-                        <span className="text-xs">
-                          Received: ₹{getReceivedAmount().toLocaleString()} |
-                          Min Rent: ₹{getMinimumRentAmount().toLocaleString()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Penalty Allocation */}
-                {tenantPaymentData.unpaidMonths.some(
-                  (m) => m.PENALTY_PENDING > 0
-                ) && (
-                  <div>
-                    <Label className="pb-2">
-                      Select Unpaid Penalty Month (Full Payment Required)
-                    </Label>
-                    <Select
-                      value={selectedPenaltyMonth}
-                      onValueChange={setSelectedPenaltyMonth}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select penalty month" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">
-                          None (No penalty allocation)
-                        </SelectItem>
-                        {tenantPaymentData.unpaidMonths
-                          .filter((m) => m.PENALTY_PENDING > 0)
-                          .map((month) => (
-                            <SelectItem
-                              key={month.RENT_MONTH}
-                              value={month.RENT_MONTH}
-                            >
-                              {format(new Date(month.RENT_MONTH), "MMMM yyyy")}{" "}
-                              - ₹{month.PENALTY_PENDING.toLocaleString()}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Outstanding Allocation */}
-                <div>
-                  <Label className="pb-2" htmlFor="outstanding-allocated">
-                    Allocate to Outstanding (Partials Allowed)
-                  </Label>
-                  <Input
-                    id="outstanding-allocated"
-                    type="number"
-                    placeholder="Enter amount"
-                    value={outstandingAllocated}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value) || 0;
-                      const maxAllowed =
-                        getUnallocatedAmount() +
-                        (parseInt(outstandingAllocated) || 0);
-                      if (value <= maxAllowed) {
-                        setOutstandingAllocated(e.target.value);
-                      }
-                    }}
-                    className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                  {parseInt(outstandingAllocated) > getUnallocatedAmount() && (
-                    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
-                      ⚠️ Cannot allocate more than ₹
-                      {receivedAmount.toLocaleString()} to outstanding.
+                        </SelectContent>
+                      </Select>
+                      {(getReceivedAmount() < getMinimumRentAmount() ||
+                        getReceivedAmount() === 0) && (
+                        <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+                          ⚠️ Insufficient payment for rent. Rent requires full
+                          payment - no partial payments allowed.
+                          <br />
+                          <span className="text-xs">
+                            Received: ₹{getReceivedAmount().toLocaleString()} |
+                            Min Rent: ₹{getMinimumRentAmount().toLocaleString()}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
+
+                {/* Penalty Allocation */}
+                {selectedRentMonth &&
+                  selectedRentMonth !== "none" &&
+                  (() => {
+                    const month = getSelectedMonth(selectedRentMonth);
+                    // Show this section only if a penalty amount exists for the selected month
+                    if (!month || month.PENALTY_PENDING <= 0) {
+                      return null;
+                    }
+
+                    const penaltyApplies = isPenaltyShouldApply(
+                      month,
+                      paymentDate
+                    );
+
+                    if (penaltyApplies) {
+                      // Case 1: Penalty is DUE because payment is late
+                      return (
+                        <div>
+                          <Label className="pb-2 flex items-center gap-2 text-destructive">
+                            Penalty for this month
+                          </Label>
+                          <div className="p-3 border-destructive bg-red-50 rounded-md flex items-center justify-between">
+                            <span className="font-medium text-destructive">
+                              ₹{month.PENALTY_PENDING.toLocaleString()}
+                            </span>
+                            <span className="text-xs text-destructive">
+                              (Full penalty must be paid)
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Reason: Payment date is on or after the penalty
+                            trigger date (
+                            {format(
+                              new Date(month.penaltyTriggerDate),
+                              "MMM d, yyyy"
+                            )}
+                            ).
+                          </p>
+                          {/* Waive Penalty Checkbox */}
+                          <div className="flex items-center gap-2 mt-3">
+                            <input
+                              id="waive-penalty-checkbox"
+                              type="checkbox"
+                              checked={isPenaltyManuallyWaived}
+                              onChange={(e) =>
+                                setIsPenaltyManuallyWaived(e.target.checked)
+                              }
+                              className="accent-green-600 w-4 h-4"
+                            />
+                            <Label
+                              htmlFor="waive-penalty-checkbox"
+                              className="text-sm cursor-pointer"
+                            >
+                              Waive penalty for this month
+                            </Label>
+                          </div>
+                          {isPenaltyManuallyWaived ? null : (
+                            <div className="mt-3">
+                              <Label
+                                htmlFor="penalty-allocated-input"
+                                className="text-sm"
+                              >
+                                Enter penalty amount to allocate (max ₹
+                                {penaltyMax.toLocaleString()})
+                              </Label>
+                              <input
+                                id="penalty-allocated-input"
+                                type="number"
+                                min={0}
+                                max={penaltyMax}
+                                value={
+                                  penaltyAllocatedInput === ""
+                                    ? penaltyAutoAllocate
+                                    : penaltyAllocatedInput
+                                }
+                                onChange={(e) => {
+                                  let val = parseInt(e.target.value) || 0;
+                                  if (val > penaltyMax) val = penaltyMax;
+                                  if (
+                                    val >
+                                    getUnallocatedAmount() +
+                                      (parseInt(penaltyAllocatedInput) || 0)
+                                  )
+                                    val =
+                                      getUnallocatedAmount() +
+                                      (parseInt(penaltyAllocatedInput) || 0);
+                                  setPenaltyAllocatedInput(val.toString());
+                                }}
+                                className="mt-1 w-full border rounded px-2 py-1 text-destructive"
+                              />
+                              <div className="text-xs text-gray-500 mt-1">
+                                Auto-allocated up to available amount. If not
+                                enough, allocate what is possible.
+                              </div>
+                            </div>
+                          )}
+                          {isPenaltyManuallyWaived && (
+                            <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-700">
+                              Penalty will be waived off for this payment.
+                              Please ensure you have admin rights to perform
+                              this action.
+                            </div>
+                          )}
+                        </div>
+                      );
+                    } else {
+                      // Case 2: Penalty is WAIVED because payment is on time
+                      return (
+                        <div>
+                          <Label className="pb-2 flex items-center gap-2">
+                            Penalty
+                          </Label>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="p-3 border border-dashed rounded-md flex items-center justify-between cursor-help">
+                                  <span className="text-gray-500 line-through">
+                                    ₹{month.PENALTY_PENDING.toLocaleString()}
+                                  </span>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-green-600 border-green-300"
+                                  >
+                                    Waived
+                                  </Badge>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>
+                                  Waived: Rent was paid before the penalty date
+                                  of{" "}
+                                  {format(
+                                    new Date(month.penaltyTriggerDate),
+                                    "PPP"
+                                  )}
+                                  .
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      );
+                    }
+                  })()}
+
+                {/* Outstanding Allocation */}
+                {(() => {
+                  if (!selectedRentMonth || selectedRentMonth === "none")
+                    return null;
+                  const month = getSelectedMonth(selectedRentMonth);
+                  const penaltyApplies =
+                    month && isPenaltyShouldApply(month, paymentDate);
+                  // Hide if outstanding is 0 or penalty is due but manually waived
+                  if (
+                    !month ||
+                    month.OUTSTANDING_PENDING <= 0 ||
+                    (penaltyApplies && isPenaltyManuallyWaived)
+                  )
+                    return null;
+                  return (
+                    <div>
+                      <Label className="pb-2" htmlFor="outstanding-allocated">
+                        Allocate to Outstanding (Partials Allowed)
+                      </Label>
+                      <Input
+                        id="outstanding-allocated"
+                        type="number"
+                        placeholder="Enter amount"
+                        value={outstandingAllocated}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value) || 0;
+                          const maxAllowed =
+                            getUnallocatedAmount() +
+                            (parseInt(outstandingAllocated) || 0);
+                          if (value <= maxAllowed) {
+                            setOutstandingAllocated(e.target.value);
+                          }
+                        }}
+                        className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        disabled={(() => {
+                          // If penalty is required and not fully allocated, disable outstanding
+                          if (
+                            selectedRentMonth &&
+                            selectedRentMonth !== "none"
+                          ) {
+                            const month = getSelectedMonth(selectedRentMonth);
+                            const penaltyApplies = isPenaltyShouldApply(
+                              month,
+                              paymentDate
+                            );
+                            if (
+                              month &&
+                              month.PENALTY_PENDING > 0 &&
+                              penaltyApplies
+                            ) {
+                              return true;
+                            }
+                          }
+                          return false;
+                        })()}
+                      />
+                      {parseInt(outstandingAllocated) >
+                        getUnallocatedAmount() && (
+                        <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+                          ⚠️ Cannot allocate more than ₹
+                          {receivedAmount.toLocaleString()} to outstanding.
+                        </div>
+                      )}
+                      {selectedRentMonth &&
+                        selectedRentMonth !== "none" &&
+                        (() => {
+                          const month = getSelectedMonth(selectedRentMonth);
+                          const penaltyApplies = isPenaltyShouldApply(
+                            month,
+                            paymentDate
+                          );
+                          if (
+                            month &&
+                            month.PENALTY_PENDING > 0 &&
+                            penaltyApplies
+                          ) {
+                            return (
+                              <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700">
+                                Penalty must be paid before allocating to
+                                outstanding for this month.
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+                    </div>
+                  );
+                })()}
 
                 {/* Allocation Summary */}
                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -869,9 +1223,17 @@ export function AddPaymentModal({
                       <span>
                         ₹
                         {selectedRentMonth && selectedRentMonth !== "none"
-                          ? tenantPaymentData.unpaidMonths
-                              .find((m) => m.RENT_MONTH === selectedRentMonth)
-                              ?.RENT_PENDING.toLocaleString() || "0"
+                          ? (tenantPaymentData.allMonths
+                              ? tenantPaymentData.allMonths
+                                  .find(
+                                    (m) => m.RENT_MONTH === selectedRentMonth
+                                  )
+                                  ?.RENT_PENDING.toLocaleString()
+                              : tenantPaymentData.unpaidMonths
+                                  .find(
+                                    (m) => m.RENT_MONTH === selectedRentMonth
+                                  )
+                                  ?.RENT_PENDING.toLocaleString()) || "0"
                           : "0"}
                       </span>
                     </div>
@@ -879,15 +1241,50 @@ export function AddPaymentModal({
                       <span>Penalty:</span>
                       <span>
                         ₹
-                        {selectedPenaltyMonth && selectedPenaltyMonth !== "none"
-                          ? tenantPaymentData.unpaidMonths
-                              .find(
-                                (m) => m.RENT_MONTH === selectedPenaltyMonth
-                              )
-                              ?.PENALTY_PENDING.toLocaleString() || "0"
-                          : "0"}
+                        {(() => {
+                          if (isPenaltyManuallyWaived) return "0";
+                          if (penaltyApplies)
+                            return getPenaltyAllocated().toLocaleString();
+                          if (
+                            selectedPenaltyMonth &&
+                            selectedPenaltyMonth !== "none"
+                          ) {
+                            const month = tenantPaymentData?.allMonths
+                              ? tenantPaymentData.allMonths.find(
+                                  (m) => m.RENT_MONTH === selectedPenaltyMonth
+                                )
+                              : tenantPaymentData?.unpaidMonths.find(
+                                  (m) => m.RENT_MONTH === selectedPenaltyMonth
+                                );
+                            return (
+                              month?.PENALTY_PENDING?.toLocaleString() || "0"
+                            );
+                          }
+                          return "0";
+                        })()}
                       </span>
                     </div>
+                    {selectedRentMonth &&
+                      selectedRentMonth !== "none" &&
+                      (() => {
+                        const month = getSelectedMonth(selectedRentMonth);
+                        const penaltyApplies =
+                          month && isPenaltyShouldApply(month, paymentDate);
+                        if (
+                          month &&
+                          month.PENALTY_PENDING > 0 &&
+                          penaltyApplies &&
+                          isPenaltyManuallyWaived
+                        ) {
+                          return (
+                            <div className="flex justify-between text-xs text-green-700">
+                              <span></span>
+                              <span>Penalty waived off for this payment</span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     <div className="flex justify-between">
                       <span>Outstanding:</span>
                       <span>
@@ -900,20 +1297,23 @@ export function AddPaymentModal({
                         <span>Total Allocated:</span>
                         <span>
                           ₹
-                          {(
-                            (selectedRentMonth && selectedRentMonth !== "none"
-                              ? tenantPaymentData.unpaidMonths.find(
-                                  (m) => m.RENT_MONTH === selectedRentMonth
-                                )?.RENT_PENDING || 0
-                              : 0) +
-                            (selectedPenaltyMonth &&
-                            selectedPenaltyMonth !== "none"
-                              ? tenantPaymentData.unpaidMonths.find(
-                                  (m) => m.RENT_MONTH === selectedPenaltyMonth
-                                )?.PENALTY_PENDING || 0
-                              : 0) +
-                            (parseInt(outstandingAllocated) || 0)
-                          ).toLocaleString()}
+                          {(() => {
+                            let rent = 0,
+                              penalty = getPenaltyAllocated(),
+                              outstanding = parseInt(outstandingAllocated) || 0;
+                            if (
+                              selectedRentMonth &&
+                              selectedRentMonth !== "none"
+                            ) {
+                              const month = getSelectedMonth(selectedRentMonth);
+                              if (month) rent = month.RENT_PENDING || 0;
+                            }
+                            return (
+                              rent +
+                              penalty +
+                              outstanding
+                            ).toLocaleString();
+                          })()}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
@@ -925,7 +1325,21 @@ export function AddPaymentModal({
                               : "text-green-600"
                           }
                         >
-                          ₹{getUnallocatedAmount().toLocaleString()}
+                          ₹
+                          {(() => {
+                            // Unallocated = receivedAmount - (rent + penalty + outstanding)
+                            let rent = 0,
+                              penalty = getPenaltyAllocated(),
+                              outstanding = parseInt(outstandingAllocated) || 0;
+                            if (
+                              selectedRentMonth &&
+                              selectedRentMonth !== "none"
+                            ) {
+                              const month = getSelectedMonth(selectedRentMonth);
+                              if (month) rent = month.RENT_PENDING || 0;
+                            }
+                            return `${(parseInt(receivedAmount) - (rent + penalty + outstanding)).toLocaleString()}`;
+                          })()}
                         </span>
                       </div>
                     </div>
@@ -985,9 +1399,13 @@ export function AddPaymentModal({
                         </span>
                         <span>
                           ₹
-                          {tenantPaymentData.unpaidMonths
-                            .find((m) => m.RENT_MONTH === selectedRentMonth)
-                            ?.RENT_PENDING.toLocaleString()}
+                          {tenantPaymentData.allMonths
+                            ? tenantPaymentData.allMonths
+                                .find((m) => m.RENT_MONTH === selectedRentMonth)
+                                ?.RENT_PENDING?.toLocaleString() || "0"
+                            : tenantPaymentData.unpaidMonths
+                                .find((m) => m.RENT_MONTH === selectedRentMonth)
+                                ?.RENT_PENDING?.toLocaleString() || "0"}
                         </span>
                       </div>
                     )}
@@ -1004,11 +1422,37 @@ export function AddPaymentModal({
                           </span>
                           <span>
                             ₹
-                            {tenantPaymentData.unpaidMonths
-                              .find(
-                                (m) => m.RENT_MONTH === selectedPenaltyMonth
-                              )
-                              ?.PENALTY_PENDING.toLocaleString()}
+                            {(() => {
+                              if (isPenaltyManuallyWaived) return "0";
+                              if (penaltyApplies)
+                                return (
+                                  penaltyAllocatedInput || penaltyAutoAllocate
+                                );
+                              if (
+                                selectedPenaltyMonth &&
+                                selectedPenaltyMonth !== "none"
+                              ) {
+                                return (
+                                  (tenantPaymentData.allMonths
+                                    ? tenantPaymentData.allMonths
+                                        .find(
+                                          (m) =>
+                                            m.RENT_MONTH ===
+                                            selectedPenaltyMonth
+                                        )
+                                        ?.PENALTY_PENDING.toLocaleString()
+                                    : tenantPaymentData.unpaidMonths
+                                        .find(
+                                          (m) =>
+                                            m.RENT_MONTH ===
+                                            selectedPenaltyMonth
+                                        )
+                                        ?.PENALTY_PENDING.toLocaleString()) ||
+                                  "0"
+                                );
+                              }
+                              return "0";
+                            })()}
                           </span>
                         </div>
                       )}

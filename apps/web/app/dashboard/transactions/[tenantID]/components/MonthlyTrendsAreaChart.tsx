@@ -8,7 +8,6 @@ import {
   CartesianGrid,
   XAxis,
   YAxis,
-  Tooltip,
 } from "recharts";
 
 import {
@@ -24,7 +23,6 @@ import {
   ChartLegend,
   ChartLegendContent,
   ChartTooltip,
-  ChartTooltipContent,
 } from "@/components/ui/chart";
 import {
   Select,

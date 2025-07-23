@@ -76,11 +76,11 @@ export function DeleteTransactionButton({
       );
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = (await response.json()) as { message?: string };
         throw new Error(errorData.message || "Failed to delete transaction");
       }
 
-      const result = await response.json();
+      await response.json();
 
       toast.success("Transaction deleted successfully", {
         description: `Payment of ₹${amount.toLocaleString()} for ${tenantName} has been removed.`,
@@ -105,9 +105,8 @@ export function DeleteTransactionButton({
     <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
       <AlertDialogTrigger asChild>
         <Button
-          variant="destructive"
           size="sm"
-          className="flex-1"
+          className="flex-1 bg-barn-red-800 text-destructive-foreground hover:bg-barn-red-800/90"
           disabled={isDeleting}
         >
           {isDeleting ? (
@@ -171,7 +170,7 @@ export function DeleteTransactionButton({
           <AlertDialogAction
             onClick={handleDelete}
             disabled={isDeleting}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            className="bg-barn-red-200 text-destructive-foreground hover:bg-barn-red-200/90"
           >
             {isDeleting ? (
               <>

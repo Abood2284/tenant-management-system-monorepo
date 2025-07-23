@@ -1,0 +1,12 @@
+{
+    "name": "@repo/types",
+    "type": "module",
+    "exports": {
+        "./api": "./api.ts"
+    },
+    "main": "./api.ts",
+    "types": "./api.ts",
+    "devDependencies": {
+        "typescript": "latest"
+    }
+}

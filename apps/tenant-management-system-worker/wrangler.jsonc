@@ -6,33 +6,161 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
+  // Environment variables for database and other services
   "vars": {
-    "DATABASE_URL": "postgresql://neondb_owner:npg_yH4i8OwYAWQN@ep-tight-math-a8k4bjh7-pooler.eastus2.azure.neon.tech/neondb?sslmode=require&channel_binding=require"
+    "DATABASE_URL": "postgresql://neondb_owner:npg_yH4i8OwYAWQN@ep-tight-math-a8k4bjh7-pooler.eastus2.azure.neon.tech/neondb?sslmode=require&channel_binding=require",
+    "NODE_ENV": "development"
+    
   },
+  
+  // Secrets (use wrangler secret put command to set these)
+  // "secrets": [
+  //   "DATABASE_URL",
+  //   "WHATSAPP_API_TOKEN"
+  // ],
+  
+  // =====================================================
+  // CRON TRIGGERS
+  // =====================================================
+  // The following cron triggers schedule background jobs for the worker.
+  //
+  // - Quarterly penalty processing: runs at 00:00 UTC on Jan 1, Apr 1, Jul 1, Oct 1
+  //   (see /api/internal/process-quarterly-penalties in index.ts)
+  // - Monthly rent tracking: runs at 00:00 UTC on the 1st of every month
+  //   (see processMonthlyRentTracking and scheduled export in index.ts)
+  //
+  // These jobs ensure:
+  //   - Penalties are applied to overdue tenants every quarter
+  //   - MONTHLY_RENT_TRACKING is pre-populated for all tenants every month
+  //   - Data integrity and reporting consistency
+  //
+  // Best practice: Use cron jobs for all periodic, system-wide data maintenance.
+  // =====================================================
+  "triggers": {
+    "crons": [
+      "0 0 1 1,4,7,10 *", // Quarterly penalty processing (Jan, Apr, Jul, Oct)
+      "0 0 1 * *"         // Monthly rent tracking (1st of every month)
+    ]
+  },
+  
+  
+  // // Custom domains (if you have them)
+  // "routes": [
+  //   {
+  //     "pattern": "api.yourdomain.com/*",
+  //     "zone_name": "yourdomain.com"
+  //   }
+  // ],
+  
+  // // Environment-specific configurations
+  // "env": {
+  //   "production": {
+  //     "vars": {
+  //       "DATABASE_URL": "postgresql://neondb_owner:npg_yH4i8OwYAWQN@ep-tight-math-a8k4bjh7-pooler.eastus2.azure.neon.tech/neondb?sslmode=require&channel_binding=require",
+  //       "NODE_ENV": "production",
+  //       "NEXT_PUBLIC_WORKER_URL": "https://tenant-management-system-worker.sayyedabood69.workers.dev"
+  //     },
+  //     "triggers": [
+  //       {
+  //         "crons": ["0 0 1 1,4,7,10 *"]
+  //       }
+  //     ]
+  //   },
+  // },
+    
+  //   "staging": {
+  //     "vars": {
+  //       "NODE_ENV": "staging",
+  //       "WORKER_URL": "https://tenant-management-system-worker-staging.your-subdomain.workers.dev"
+  //     },
+  //     "triggers": [
+  //       {
+  //         // Every Monday at 9 AM UTC for testing
+  //         "crons": ["0 9 * * MON"]
+  //       }
+  //     ]
+  //   },
+    
+  //   "development": {
+  //     "vars": {
+  //       "NODE_ENV": "development",
+  //       "WORKER_URL": "http://localhost:8787"
+  //     },
+  //     "triggers": [
+  //       {
+  //         // Every 5 minutes for local testing
+  //         "crons": ["*/5 * * * *"]
+  //       }
+  //     ]
+  //   }
+  // },
+  
+  // // Build configuration
+  // "build": {
+  //   "command": "",
+  //   "cwd": "",
+  //   "watch_dir": "src"
+  // },
+  
+  // // Deployment settings
+  // "minify": true,
+  // "node_compat": false,
+  // "send_metrics": true,
+  
+  // // Optional: If you need KV storage
   // "kv_namespaces": [
   //   {
-  //     "binding": "MY_KV_NAMESPACE",
-  //     "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  //     "binding": "CACHE",
+  //     "id": "your-kv-namespace-id",
+  //     "preview_id": "your-preview-kv-namespace-id"
   //   }
   // ],
-  // "r2_buckets": [
-  //   {
-  //     "binding": "MY_BUCKET",
-  //     "bucket_name": "my-bucket"
-  //   }
-  // ],
+  
+  // // Optional: If you migrate to D1 from Neon
   // "d1_databases": [
   //   {
-  //     "binding": "MY_DB",
-  //     "database_name": "my-database",
-  //     "database_id": ""
+  //     "binding": "DB",
+  //     "database_name": "tenant-management-db",
+  //     "database_id": "your-d1-database-id"
   //   }
   // ],
-  // "ai": {
-  //   "binding": "AI"
+  
+  // // Optional: For file uploads/storage
+  // "r2_buckets": [
+  //   {
+  //     "binding": "FILES",
+  //     "bucket_name": "tenant-files"
+  //   }
+  // ],
+  
+  // // Analytics engine bindings (for logging/metrics)
+  // "analytics_engine_datasets": [
+  //   {
+  //     "binding": "ANALYTICS",
+  //     "dataset": "tenant_analytics"
+  //   }
+  // ],
+  
+  // // Durable Objects (if needed for complex state management)
+  // "durable_objects": {
+  //   "bindings": []
   // },
-  // "observability": {
-  //   "enabled": true,
-  //   "head_sampling_rate": 1
+  
+  // // Custom rules for different file types
+  // "rules": [
+  //   {
+  //     "type": "ESModule",
+  //     "globs": ["**/*.js", "**/*.ts"]
+  //   }
+  // ],
+  
+  // // Limits configuration
+  // "limits": {
+  //   "cpu_ms": 50
   // }
+  "observability": {
+    "logs": {
+      "enabled": true
+    }
+  }
 }
